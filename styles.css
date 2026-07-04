@@ -194,11 +194,53 @@ label {
     box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
 }
 
-/* Zip Code Field specifics */
-.zip-input-container {
+/* Address Input & GPS Location controls */
+.address-input-wrapper {
     position: relative;
     display: flex;
     align-items: center;
+    width: 100%;
+}
+
+.address-input {
+    width: 100%;
+    padding-right: 40px !important; /* Leave room for GPS button */
+    cursor: text !important;
+}
+
+.btn-gps {
+    position: absolute;
+    right: 8px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+}
+
+.btn-gps:hover {
+    color: var(--color-primary);
+    background-color: rgba(16, 185, 129, 0.1);
+}
+
+.btn-gps:active {
+    transform: scale(0.95);
+}
+
+/* Loading animation for the GPS button */
+.address-input-wrapper.loading .btn-gps svg {
+    animation: gps-spin 1.5s linear infinite;
+    color: var(--color-primary);
+}
+
+@keyframes gps-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 /* Climate Zone Card */
@@ -812,10 +854,16 @@ label {
     border: 0;
 }
 
-/* Google Photos Button */
-.btn-gphotos {
+/* Import Actions & URL Import Styling */
+.import-actions-wrapper {
     margin: 0 20px 20px 20px;
-    width: calc(100% - 40px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.btn-gphotos {
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -830,6 +878,52 @@ label {
 .btn-gphotos:hover {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
+}
+
+.link-import-box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: all 0.3s ease;
+}
+
+.link-import-box:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.link-import-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.link-input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.link-input-group .input-select {
+    padding: 8px 12px;
+    font-size: 12px;
+    border-radius: var(--radius-sm);
+    flex-grow: 1;
+    cursor: text;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.link-input-group .btn-primary {
+    padding: 8px 16px;
+    font-size: 12px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    box-shadow: none;
 }
 
 /* Modal Popup Window */
@@ -1061,4 +1155,14 @@ label {
 
 .gphotos-actions .btn {
     padding: 10px 24px;
+}
+
+/* Google Photos Live Setup hover states */
+.gphotos-config-section details summary:hover {
+    color: var(--color-primary-hover) !important;
+}
+
+.gphotos-config-section a:hover {
+    text-decoration: underline !important;
+    color: var(--color-primary-hover) !important;
 }

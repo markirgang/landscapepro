@@ -9,6 +9,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <!-- Google Identity Services (GIS) SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- heic2any CDN for client-side HEIC conversion -->
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.4.0/dist/heic2any.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -29,31 +33,19 @@
                         Location & Climate
                     </h2>
                     
-                    <label for="zip-code">Select Zip Code</label>
-                    <div class="zip-input-container">
-                        <select id="zip-code" class="input-select">
-                            <option value="" disabled selected>Choose a Zip Code...</option>
-                            <option value="90210">90210 (Beverly Hills, CA)</option>
-                            <option value="10001">10001 (New York, NY)</option>
-                            <option value="60601">60601 (Chicago, IL)</option>
-                            <option value="33101">33101 (Miami, FL)</option>
-                            <option value="98101">98101 (Seattle, WA)</option>
-                            <option value="80201">80201 (Denver, CO)</option>
-                            <option value="75201">75201 (Dallas, TX)</option>
-                            <option value="04401">04401 (Bangor, ME)</option>
-                            <option value="99501">99501 (Anchorage, AK)</option>
-                            <option value="96801">96801 (Honolulu, HI)</option>
-                            <option value="79901">79901 (El Paso, TX)</option>
-                            <option value="85001">85001 (Phoenix, AZ)</option>
-                            <option value="59001">59001 (Billings, MT)</option>
-                            <option value="32801">32801 (Orlando, FL)</option>
-                            <option value="95814">95814 (Sacramento, CA)</option>
-                            <option value="20001">20001 (Washington, DC)</option>
-                            <option value="02108">02108 (Boston, MA)</option>
-                            <option value="97201">97201 (Portland, OR)</option>
-                            <option value="55401">55401 (Minneapolis, MN)</option>
-                            <option value="84101">84101 (Salt Lake City, UT)</option>
-                        </select>
+                    <label for="address-input">Property Address</label>
+                    <div class="address-input-wrapper">
+                        <input type="text" id="address-input" class="input-select address-input" placeholder="Enter zip or address (e.g. 90210)...">
+                        <button type="button" id="btn-gps" class="btn-gps" title="Use current GPS location">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                            </svg>
+                        </button>
                     </div>
 
                     <div id="climate-zone-card" class="climate-card hidden">
@@ -87,6 +79,15 @@
                             <option value="silt-loam">Silt Loam (Excellent moisture retention)</option>
                             <option value="gravelly">Gravelly / Rocky (High drainage, poor retention)</option>
                             <option value="woodland">Acidic Woodland Soil (High organic, low pH)</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="soil-acidity">Soil Acidity (pH)</label>
+                        <select id="soil-acidity" class="input-select">
+                            <option value="neutral" selected>Neutral (pH 6.0 - 7.0) - Optimal</option>
+                            <option value="acidic">Acidic (pH &lt; 6.0) - Ideal for Hydrangeas/Azaleas</option>
+                            <option value="alkaline">Alkaline (pH &gt; 7.0) - Ideal for Lilacs/Clematis</option>
                         </select>
                     </div>
 
@@ -243,27 +244,39 @@
                     </div>
                     
                     <div class="upload-dropzone" id="dropzone">
-                        <input type="file" id="file-input" multiple accept="image/*" class="file-input-hidden">
+                        <input type="file" id="file-input" multiple accept="image/*,.heic,.heif" class="file-input-hidden">
                         <div class="dropzone-content">
                             <div class="dropzone-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                             </div>
                             <h4>Drag & Drop Photos</h4>
                             <p>or click to browse from device</p>
-                            <span class="file-limits">Supports JPEG, PNG, WEBP</span>
+                            <span class="file-limits">Supports JPEG, PNG, WEBP, HEIC</span>
                         </div>
                     </div>
 
-                    <!-- Google Photos browser button -->
-                    <button id="btn-google-photos" class="btn btn-secondary btn-gphotos">
-                        <svg class="icon-left" viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 6px;">
-                            <path d="M6 12a6 6 0 0 1 6-6v6H6Z" fill="#EA4335"/>
-                            <path d="M12 6a6 6 0 0 1 6 6h-6V6Z" fill="#4285F4"/>
-                            <path d="M18 12a6 6 0 0 1-6 6v-6h6Z" fill="#FBBC05"/>
-                            <path d="M12 18a6 6 0 0 1-6-6h6v6Z" fill="#34A853"/>
-                        </svg>
-                        Browse Google Photos
-                    </button>
+                    <!-- Import Actions Wrapper -->
+                    <div class="import-actions-wrapper">
+                        <!-- Google Photos browser button -->
+                        <button id="btn-google-photos" class="btn btn-secondary btn-gphotos">
+                            <svg class="icon-left" viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 6px;">
+                                <path d="M6 12a6 6 0 0 1 6-6v6H6Z" fill="#EA4335"/>
+                                <path d="M12 6a6 6 0 0 1 6 6h-6V6Z" fill="#4285F4"/>
+                                <path d="M18 12a6 6 0 0 1-6 6v-6h6Z" fill="#FBBC05"/>
+                                <path d="M12 18a6 6 0 0 1-6-6h6v6Z" fill="#34A853"/>
+                            </svg>
+                            Browse Google Photos
+                        </button>
+
+                        <!-- Photo Link Input Box -->
+                        <div class="link-import-box">
+                            <label class="link-import-title">Import from URL / Photo Link</label>
+                            <div class="link-input-group">
+                                <input type="url" id="input-photo-link" class="input-select" placeholder="Paste link (Google, Apple, Dropbox, etc.)...">
+                                <button id="btn-import-link" class="btn btn-primary">Import</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Gallery List -->
                     <div class="gallery-container">
@@ -365,6 +378,26 @@
                     <div class="auth-icon">🔒</div>
                     <h4>Access Your Google Photos</h4>
                     <p>Connect your Google Account to safely browse and import your garden and backyard spaces.</p>
+                    
+                    <!-- API Configurations Panel -->
+                    <div class="gphotos-config-section" style="margin-top: 15px; margin-bottom: 20px; border-top: 1px solid var(--border-color); padding-top: 15px; text-align: left;">
+                        <details id="gphotos-config-details">
+                            <summary style="font-size: 12px; cursor: pointer; color: var(--color-primary); font-weight: 500; outline: none; margin-bottom: 8px;">🔧 Setup Google API Credentials (Required)</summary>
+                            <div style="margin-top: 10px; font-size: 11.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px; line-height: 1.4;">
+                                <p>To fetch your real Google Photos, you need a Google Cloud OAuth 2.0 Client ID:</p>
+                                <ol style="padding-left: 18px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px;">
+                                    <li>Go to the <a href="https://console.cloud.google.com/" target="_blank" style="color: var(--color-primary); text-decoration: underline;">Google Cloud Console</a>.</li>
+                                    <li>Enable the <strong>Google Photos Library API</strong> for your project.</li>
+                                    <li>Under <em>API & Services > Credentials</em>, create an <strong>OAuth client ID</strong> of type <em>Web Application</em>.</li>
+                                    <li>Add the URL where this app is served (e.g. <code>http://localhost:8000</code> or <code>http://127.0.0.1:8000</code>) to the <strong>Authorized JavaScript Origins</strong>.</li>
+                                    <li>Paste your Client ID below:</li>
+                                </ol>
+                                <input type="text" id="gphotos-client-id" class="input-select" style="font-family: monospace; font-size: 11px; padding: 8px; cursor: text; background: rgba(0,0,0,0.4);" placeholder="your-client-id.apps.googleusercontent.com">
+                                <button type="button" id="btn-save-gphotos-config" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; align-self: flex-start; margin-top: 4px;">Save Credentials</button>
+                            </div>
+                        </details>
+                    </div>
+
                     <button id="btn-gphotos-login" class="btn btn-secondary btn-g-signin">
                         <svg viewBox="0 0 24 24" width="18" height="18" class="icon-left" style="margin-right: 8px; vertical-align: middle;">
                             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285f4"/>
@@ -379,25 +412,13 @@
                 <!-- Photos grid view (shown after login) -->
                 <div id="gphotos-grid-view" class="gphotos-grid-view hidden">
                     <div class="user-profile-header">
-                        <span class="user-email">Connected: <strong>marki@gmail.com</strong></span>
+                        <span class="user-email">Connected to Google Photos</span>
                         <button id="btn-gphotos-logout" class="btn-text-link">Sign out</button>
                     </div>
                     <p class="gphotos-instruction">Select yard or garden photos to import:</p>
                     
-                    <div class="gphotos-grid">
-                        <div class="gphotos-item" data-src="assets/template_bare.png" data-name="Backyard Lawn.png">
-                            <img src="assets/template_bare.png" alt="Backyard Lawn">
-                            <div class="item-overlay"><span class="checkmark">✓</span></div>
-                        </div>
-                        <div class="gphotos-item" data-src="assets/google_photo_shade.png" data-name="Sideyard Shade.png">
-                            <img src="assets/google_photo_shade.png" alt="Sideyard Shade">
-                            <div class="item-overlay"><span class="checkmark">✓</span></div>
-                        </div>
-                        <div class="gphotos-item" data-src="assets/google_photo_mud.png" data-name="Muddy Slope.jpg">
-                            <img src="assets/google_photo_mud.png" alt="Muddy Slope">
-                            <div class="item-overlay"><span class="checkmark">✓</span></div>
-                        </div>
-                    </div>
+                    <div id="gphotos-status-message" style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Loading your library...</div>
+                    <div class="gphotos-grid" id="gphotos-live-grid" style="display: none;"></div>
                     
                     <div class="gphotos-actions">
                         <button id="btn-gphotos-import" class="btn btn-primary" disabled>Import Selected Photos (0)</button>
