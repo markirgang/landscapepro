@@ -11,8 +11,16 @@
     <link rel="stylesheet" href="styles.css">
     <!-- Google Identity Services (GIS) SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <!-- heic2any CDN for client-side HEIC conversion -->
-    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.4.0/dist/heic2any.min.js"></script>
+    <!-- heic2any for client-side HEIC conversion (loaded locally with CDN fallback) -->
+    <script src="assets/heic2any.min.js"></script>
+    <script>
+        if (typeof heic2any === 'undefined') {
+            console.warn("Local heic2any.min.js failed to load. Falling back to CDN...");
+            const script = document.createElement('script');
+            script.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js";
+            document.head.appendChild(script);
+        }
+    </script>
 </head>
 <body>
     <div class="app-container">
@@ -327,6 +335,21 @@
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 18 2 12 8 6"/><polyline points="16 6 22 12 16 18"/></svg>
                                 </div>
                                 <div class="handle-line"></div>
+                            </div>
+
+                            <!-- Beautiful Glassmorphic Overlay to Launch/Regenerate Visualizations -->
+                            <div class="canvas-overlay hidden" id="canvas-overlay">
+                                <div class="overlay-content">
+                                    <div class="overlay-sparkles">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sparkle-icon"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                                    </div>
+                                    <h4>Visualisation Outdated</h4>
+                                    <p>Parameters have changed. Launch the AI model to update all concept renders.</p>
+                                    <button id="btn-launch-overlay" class="btn btn-primary btn-launch-overlay">
+                                        <span class="btn-text">Launch AI Visualization</span>
+                                        <span class="loading-spinner hidden"></span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

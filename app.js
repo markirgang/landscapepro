@@ -38,7 +38,8 @@ const state = {
     activeSeason: 'summer',
     currentZip: null,
     currentAddress: '',
-    currentZone: null
+    currentZone: null,
+    settingsDirty: false
 };
 
 // UI Elements
@@ -122,6 +123,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initGooglePhotos();
     initLinkImport();
     initDimensionsAndSeason();
+    initSettingsDirtyListeners();
     
     // Load default demo space
     loadDemoSpace();
@@ -173,6 +175,7 @@ async function handleAddressUpdate(addressText) {
         state.currentZone = null;
         climateCard.classList.add('hidden');
         updateConceptLabels();
+        markSettingsDirty();
         return;
     }
 
@@ -295,6 +298,7 @@ function updateClimateInfo(zip, addressText) {
     }
 
     updateConceptLabels();
+    markSettingsDirty();
 }
 
 function getZoneForZipCode(zip) {
@@ -447,6 +451,58 @@ function initCompareSlider() {
     });
 }
 
+/**
+ * Ensures that the heic2any library is loaded.
+ * If not already loaded, it attempts to load it from the local path,
+ * falling back to the CDN version.
+ */
+function ensureHeic2Any() {
+    return new Promise((resolve, reject) => {
+        if (typeof heic2any !== 'undefined') {
+            resolve();
+            return;
+        }
+
+        // Try loading from local path first
+        const localScript = document.createElement('script');
+        localScript.src = 'assets/heic2any.min.js';
+        
+        localScript.onload = () => {
+            if (typeof heic2any !== 'undefined') {
+                resolve();
+            } else {
+                tryCdn();
+            }
+        };
+        
+        localScript.onerror = () => {
+            tryCdn();
+        };
+        
+        document.head.appendChild(localScript);
+
+        function tryCdn() {
+            console.warn("Local heic2any.min.js failed to load. Attempting CDN fallback...");
+            const cdnScript = document.createElement('script');
+            cdnScript.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+            
+            cdnScript.onload = () => {
+                if (typeof heic2any !== 'undefined') {
+                    resolve();
+                } else {
+                    reject(new Error("HEIC converter library failed to load from both local and CDN sources."));
+                }
+            };
+            
+            cdnScript.onerror = () => {
+                reject(new Error("HEIC converter library failed to load from both local and CDN sources."));
+            };
+            
+            document.head.appendChild(cdnScript);
+        }
+    });
+}
+
 // -------------------------------------------------------------
 // IMAGE FILE IMPORT HANDLER
 // -------------------------------------------------------------
@@ -501,12 +557,25 @@ async function handleUploadedFiles(files) {
             let fileName = file.name;
 
             if (isHeic) {
+                const originalBtnText = btnGenerate.querySelector('.btn-text').textContent;
+                
                 if (typeof heic2any === 'undefined') {
-                    throw new Error("HEIC converter library is loading or failed to load. Please check your internet connection.");
+                    // Show visual feedback that it's loading the library
+                    btnGenerate.disabled = true;
+                    btnGenerate.querySelector('.btn-text').textContent = 'Loading HEIC Converter...';
+                    btnGenerate.querySelector('.loading-spinner').classList.remove('hidden');
+
+                    try {
+                        await ensureHeic2Any();
+                    } catch (err) {
+                        btnGenerate.disabled = false;
+                        btnGenerate.querySelector('.btn-text').textContent = originalBtnText;
+                        btnGenerate.querySelector('.loading-spinner').classList.add('hidden');
+                        throw new Error("HEIC converter library failed to load. Please check your internet connection.");
+                    }
                 }
                 
-                // Show visual feedback
-                const originalBtnText = btnGenerate.querySelector('.btn-text').textContent;
+                // Show visual feedback for conversion
                 btnGenerate.disabled = true;
                 btnGenerate.querySelector('.btn-text').textContent = 'Converting HEIC...';
                 btnGenerate.querySelector('.loading-spinner').classList.remove('hidden');
@@ -696,6 +765,13 @@ function triggerAIGeneration() {
     btnGenerate.querySelector('.btn-text').textContent = 'AI Model Processing...';
     btnGenerate.querySelector('.loading-spinner').classList.remove('hidden');
     
+    const btnLaunchOverlay = document.getElementById('btn-launch-overlay');
+    if (btnLaunchOverlay) {
+        btnLaunchOverlay.disabled = true;
+        btnLaunchOverlay.querySelector('.btn-text').textContent = 'AI Model Processing...';
+        btnLaunchOverlay.querySelector('.loading-spinner').classList.remove('hidden');
+    }
+    
     // Show scanner laser animation on the comparison container
     scannerBar.classList.remove('hidden');
     
@@ -716,22 +792,28 @@ function triggerAIGeneration() {
         if (state.activeImageId === 'demo') {
             // Demo templates mappings
             if (theme === 'cottage') {
+                const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'cottage', 2);
+                const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'cottage', 3);
                 state.conceptCache['demo'] = {
                     'concept-1': 'assets/template_cottage.png',
-                    'concept-2': 'assets/template_cottage.png', // Add slight variance or use same high-fidelity image
-                    'concept-3': 'assets/template_cottage.png'
+                    'concept-2': c2,
+                    'concept-3': c3
                 };
             } else if (theme === 'xeriscape') {
+                const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'xeriscape', 2);
+                const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'xeriscape', 3);
                 state.conceptCache['demo'] = {
                     'concept-1': 'assets/template_xeriscape.png',
-                    'concept-2': 'assets/template_xeriscape.png',
-                    'concept-3': 'assets/template_xeriscape.png'
+                    'concept-2': c2,
+                    'concept-3': c3
                 };
             } else if (theme === 'zen') {
+                const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'zen', 2);
+                const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'zen', 3);
                 state.conceptCache['demo'] = {
                     'concept-1': 'assets/template_zen.png',
-                    'concept-2': 'assets/template_zen.png',
-                    'concept-3': 'assets/template_zen.png'
+                    'concept-2': c2,
+                    'concept-3': c3
                 };
             } else {
                 // Any other theme: draw procedurally on top of the bare yard template image
@@ -763,6 +845,15 @@ function triggerAIGeneration() {
         btnGenerate.disabled = false;
         btnGenerate.querySelector('.btn-text').textContent = 'Generate AI Landscape';
         btnGenerate.querySelector('.loading-spinner').classList.add('hidden');
+        
+        if (btnLaunchOverlay) {
+            btnLaunchOverlay.disabled = false;
+            btnLaunchOverlay.querySelector('.btn-text').textContent = 'Launch AI Visualization';
+            btnLaunchOverlay.querySelector('.loading-spinner').classList.add('hidden');
+        }
+        
+        // Clear dirty state
+        clearSettingsDirty();
         
         // Display result
         updateActiveVisualization();
@@ -2564,4 +2655,55 @@ function checkWinterOverride(ctx, type, rVal) {
     }
     
     return true;
+}
+
+// -------------------------------------------------------------
+// SETTINGS CHANGE TRACKING & DYNAMIC GENERATION LAUNCH
+// -------------------------------------------------------------
+function markSettingsDirty() {
+    state.settingsDirty = true;
+    state.conceptCache = {}; // Reset cache so we regenerate everything fresh matching new settings
+    
+    const overlay = document.getElementById('canvas-overlay');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+}
+
+function clearSettingsDirty() {
+    state.settingsDirty = false;
+    const overlay = document.getElementById('canvas-overlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+}
+
+function initSettingsDirtyListeners() {
+    const inputs = [
+        themeSelect,
+        soilSelect,
+        aciditySelect,
+        sunSelect,
+        waterSelect,
+        areaLengthInput,
+        areaWidthInput,
+        seasonSelect
+    ];
+    
+    inputs.forEach(input => {
+        if (input) {
+            input.addEventListener('change', markSettingsDirty);
+        }
+    });
+
+    if (perennialSlider) {
+        perennialSlider.addEventListener('change', markSettingsDirty);
+    }
+    
+    const btnLaunchOverlay = document.getElementById('btn-launch-overlay');
+    if (btnLaunchOverlay) {
+        btnLaunchOverlay.addEventListener('click', () => {
+            triggerAIGeneration();
+        });
+    }
 }
