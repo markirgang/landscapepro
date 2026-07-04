@@ -41,7 +41,7 @@ const perennialLabel = document.getElementById('plant-ratio-label');
 
 const btnGenerate = document.getElementById('btn-generate');
 const scannerBar = document.getElementById('scanner-bar');
-const themeCards = document.querySelectorAll('.theme-card');
+const themeSelect = document.getElementById('garden-theme');
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -118,12 +118,8 @@ function initZipCodeSelector() {
 // LANDSCAPE THEME SELECTOR
 // -------------------------------------------------------------
 function initThemeSelector() {
-    themeCards.forEach(card => {
-        card.addEventListener('click', () => {
-            themeCards.forEach(c => c.classList.remove('active'));
-            card.classList.add('active');
-            state.activeTheme = card.dataset.theme;
-        });
+    themeSelect.addEventListener('change', (e) => {
+        state.activeTheme = e.target.value;
     });
 }
 
