@@ -929,7 +929,6 @@ function animateSliderEntrance() {
 function generateProceduralConcepts(baseImageSrc, soil, acidity, sun, water, ratio, theme, conceptIndex) {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = "anonymous";
         img.onload = () => {
             try {
                 const ctx = exportCanvas.getContext('2d');
