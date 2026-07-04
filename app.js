@@ -787,57 +787,99 @@ function triggerAIGeneration() {
         const perennialRatio = parseInt(perennialSlider.value);
         const theme = state.activeTheme;
         
-        // If it is the demo image, we load the premium static generated templates for extreme visual fidelity.
-        // If it is a user uploaded image, we run our procedural overlay engine to render plants onto their photo.
-        if (state.activeImageId === 'demo') {
-            // Demo templates mappings
-            if (theme === 'cottage') {
-                const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'cottage', 2);
-                const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'cottage', 3);
-                state.conceptCache['demo'] = {
-                    'concept-1': 'assets/template_cottage.png',
-                    'concept-2': c2,
-                    'concept-3': c3
-                };
-            } else if (theme === 'xeriscape') {
-                const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'xeriscape', 2);
-                const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'xeriscape', 3);
-                state.conceptCache['demo'] = {
-                    'concept-1': 'assets/template_xeriscape.png',
-                    'concept-2': c2,
-                    'concept-3': c3
-                };
-            } else if (theme === 'zen') {
-                const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'zen', 2);
-                const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'zen', 3);
-                state.conceptCache['demo'] = {
-                    'concept-1': 'assets/template_zen.png',
-                    'concept-2': c2,
-                    'concept-3': c3
-                };
+        try {
+            // If it is the demo image, we load the premium static generated templates for extreme visual fidelity.
+            // If it is a user uploaded image, we run our procedural overlay engine to render plants onto their photo.
+            if (state.activeImageId === 'demo') {
+                // Demo templates mappings
+                if (theme === 'cottage') {
+                    const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'cottage', 2);
+                    const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'cottage', 3);
+                    state.conceptCache['demo'] = {
+                        'concept-1': 'assets/template_cottage.png',
+                        'concept-2': c2,
+                        'concept-3': c3
+                    };
+                } else if (theme === 'xeriscape') {
+                    const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'xeriscape', 2);
+                    const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'xeriscape', 3);
+                    state.conceptCache['demo'] = {
+                        'concept-1': 'assets/template_xeriscape.png',
+                        'concept-2': c2,
+                        'concept-3': c3
+                    };
+                } else if (theme === 'zen') {
+                    const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'zen', 2);
+                    const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, 'zen', 3);
+                    state.conceptCache['demo'] = {
+                        'concept-1': 'assets/template_zen.png',
+                        'concept-2': c2,
+                        'concept-3': c3
+                    };
+                } else {
+                    // Any other theme: draw procedurally on top of the bare yard template image
+                    const c1 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 1);
+                    const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 2);
+                    const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 3);
+                    
+                    state.conceptCache['demo'] = {
+                        'concept-1': c1,
+                        'concept-2': c2,
+                        'concept-3': c3
+                    };
+                }
             } else {
-                // Any other theme: draw procedurally on top of the bare yard template image
+                // User uploaded image: procedurally draw overlays for 3 concepts
                 const c1 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 1);
                 const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 2);
                 const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 3);
                 
-                state.conceptCache['demo'] = {
+                state.conceptCache[state.activeImageId] = {
                     'concept-1': c1,
                     'concept-2': c2,
                     'concept-3': c3
                 };
             }
-        } else {
-            // User uploaded image: procedurally draw overlays for 3 concepts
-            const c1 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 1);
-            const c2 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 2);
-            const c3 = await generateProceduralConcepts(baseSrc, soil, acidity, sun, water, perennialRatio, theme, 3);
-            
-            state.conceptCache[state.activeImageId] = {
-                'concept-1': c1,
-                'concept-2': c2,
-                'concept-3': c3
-            };
+        } catch (err) {
+            console.error("AI Generation failed:", err);
+            // Fallback for demo space: use premium templates which do not require canvas exports
+            if (state.activeImageId === 'demo') {
+                console.warn("Falling back to static pre-rendered templates.");
+                if (theme === 'cottage') {
+                    state.conceptCache['demo'] = {
+                        'concept-1': 'assets/template_cottage.png',
+                        'concept-2': 'assets/template_cottage.png',
+                        'concept-3': 'assets/template_cottage.png'
+                    };
+                } else if (theme === 'xeriscape') {
+                    state.conceptCache['demo'] = {
+                        'concept-1': 'assets/template_xeriscape.png',
+                        'concept-2': 'assets/template_xeriscape.png',
+                        'concept-3': 'assets/template_xeriscape.png'
+                    };
+                } else if (theme === 'zen') {
+                    state.conceptCache['demo'] = {
+                        'concept-1': 'assets/template_zen.png',
+                        'concept-2': 'assets/template_zen.png',
+                        'concept-3': 'assets/template_zen.png'
+                    };
+                } else {
+                    // Fallback to cottage if theme is unsupported
+                    state.conceptCache['demo'] = {
+                        'concept-1': 'assets/template_cottage.png',
+                        'concept-2': 'assets/template_cottage.png',
+                        'concept-3': 'assets/template_cottage.png'
+                    };
+                }
+            } else {
+                // Fallback for user uploaded image: just display the original image
+                alert("AI Generation failed due to browser security restrictions on local files (Tainted Canvas). To resolve this, run this page via a local web server (e.g. VS Code Live Server) or upload/drag-and-drop your image again.");
+                state.conceptCache[state.activeImageId] = {
+                    'concept-1': baseSrc,
+                    'concept-2': baseSrc,
+                    'concept-3': baseSrc
+                };
+            }
         }
         
         // Hide scanner and spinner
@@ -885,24 +927,33 @@ function animateSliderEntrance() {
 // Draws beautiful, organic plant overlays based on environmental factors
 // -------------------------------------------------------------
 function generateProceduralConcepts(baseImageSrc, soil, acidity, sun, water, ratio, theme, conceptIndex) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.onload = () => {
-            const ctx = exportCanvas.getContext('2d');
-            
-            // Set canvas size matching the loaded image
-            exportCanvas.width = img.naturalWidth;
-            exportCanvas.height = img.naturalHeight;
-            
-            // Draw original base space
-            ctx.drawImage(img, 0, 0);
-            
-            // Draw organic, customized plant overlays
-            drawPlantOverlay(ctx, exportCanvas.width, exportCanvas.height, soil, acidity, sun, water, ratio, theme, conceptIndex);
-            
-            // Return generated concept data URI
-            resolve(exportCanvas.toDataURL('image/png'));
+            try {
+                const ctx = exportCanvas.getContext('2d');
+                
+                // Set canvas size matching the loaded image
+                exportCanvas.width = img.naturalWidth;
+                exportCanvas.height = img.naturalHeight;
+                
+                // Draw original base space
+                ctx.drawImage(img, 0, 0);
+                
+                // Draw organic, customized plant overlays
+                drawPlantOverlay(ctx, exportCanvas.width, exportCanvas.height, soil, acidity, sun, water, ratio, theme, conceptIndex);
+                
+                // Return generated concept data URI
+                resolve(exportCanvas.toDataURL('image/png'));
+            } catch (err) {
+                console.warn("Canvas export failed (likely due to file:// protocol security restrictions):", err);
+                reject(err);
+            }
+        };
+        img.onerror = (err) => {
+            console.error("Failed to load image for procedural generation:", baseImageSrc);
+            reject(err);
         };
         img.src = baseImageSrc;
     });
