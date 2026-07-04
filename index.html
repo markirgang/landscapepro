@@ -43,6 +43,16 @@
                             <option value="04401">04401 (Bangor, ME)</option>
                             <option value="99501">99501 (Anchorage, AK)</option>
                             <option value="96801">96801 (Honolulu, HI)</option>
+                            <option value="79901">79901 (El Paso, TX)</option>
+                            <option value="85001">85001 (Phoenix, AZ)</option>
+                            <option value="59001">59001 (Billings, MT)</option>
+                            <option value="32801">32801 (Orlando, FL)</option>
+                            <option value="95814">95814 (Sacramento, CA)</option>
+                            <option value="20001">20001 (Washington, DC)</option>
+                            <option value="02108">02108 (Boston, MA)</option>
+                            <option value="97201">97201 (Portland, OR)</option>
+                            <option value="55401">55401 (Minneapolis, MN)</option>
+                            <option value="84101">84101 (Salt Lake City, UT)</option>
                         </select>
                     </div>
 
@@ -71,6 +81,12 @@
                             <option value="silty">Silty (Smooth, Fertile)</option>
                             <option value="peaty">Peaty (Acidic, Organic)</option>
                             <option value="chalky">Chalky (Alkaline, Stony)</option>
+                            <option value="clay-loam">Clay Loam (Rich, retaining moisture)</option>
+                            <option value="sandy-loam">Sandy Loam (Ideal drainage, moderate fertility)</option>
+                            <option value="sandy-clay">Sandy Clay (Heavy, slow draining)</option>
+                            <option value="silt-loam">Silt Loam (Excellent moisture retention)</option>
+                            <option value="gravelly">Gravelly / Rocky (High drainage, poor retention)</option>
+                            <option value="woodland">Acidic Woodland Soil (High organic, low pH)</option>
                         </select>
                     </div>
 
@@ -78,18 +94,23 @@
                         <label for="sun-amount">Amount of Sun</label>
                         <select id="sun-amount" class="input-select">
                             <option value="full-sun">Full Sun (6+ hours direct)</option>
+                            <option value="dappled-sun">Dappled Sun (Filtered light all day)</option>
                             <option value="partial-shade">Partial Shade (3-6 hours)</option>
                             <option value="full-shade">Full Shade (Under 3 hours)</option>
+                            <option value="deep-shade">Deep Shade (Dense canopy, no direct sun)</option>
+                            <option value="hot-afternoon">Hot Afternoon Sun (Intense west exposure)</option>
                         </select>
                     </div>
 
                     <div class="field">
                         <label for="water-amount">Amount of Moisture</label>
                         <select id="water-amount" class="input-select">
-                            <option value="well-drained">Well-drained (Optimal)</option>
-                            <option value="dry">Dry / Xeric (Arid)</option>
-                            <option value="moist">Moist (Consistently damp)</option>
-                            <option value="wet">Wet / Soggy (Boggy)</option>
+                            <option value="well-drained">Well-drained / Average (Optimal)</option>
+                            <option value="dry">Extremely Dry / Arid (Drought-like)</option>
+                            <option value="moist">Consistently Moist (Damp forest floor)</option>
+                            <option value="wet">Soggy / Wet (Bog-like conditions)</option>
+                            <option value="seasonally-wet">Seasonally Wet (Wet winter, dry summer)</option>
+                            <option value="flood-prone">Flood-prone / Hydric (Streamside / low-lying)</option>
                         </select>
                     </div>
                 </div>
@@ -127,6 +148,14 @@
                             <option value="xeriscape">🌵 Modern Dry Xeriscape</option>
                             <option value="zen">🎋 Japanese Zen Garden</option>
                             <option value="meadow">🌾 Wildflower Meadow</option>
+                            <option value="mediterranean">🍋 Mediterranean Terrace</option>
+                            <option value="rain-garden">☔ Pacific NW Rain Garden</option>
+                            <option value="desert-oasis">🐫 Desert Southwest Oasis</option>
+                            <option value="woodland-shade">🌳 Woodland Shade Glen</option>
+                            <option value="formal-french">⛲ Formal French Parterre</option>
+                            <option value="tropical-jungle">🌴 Tropical Paradise Jungle</option>
+                            <option value="pollinator">🐝 Pollinator Sanctuary</option>
+                            <option value="rock-alpine">🏔️ Rock Garden Alpine</option>
                         </select>
                     </div>
                 </div>
@@ -184,6 +213,17 @@
                             <span class="file-limits">Supports JPEG, PNG, WEBP</span>
                         </div>
                     </div>
+
+                    <!-- Google Photos browser button -->
+                    <button id="btn-google-photos" class="btn btn-secondary btn-gphotos">
+                        <svg class="icon-left" viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 6px;">
+                            <path d="M6 12a6 6 0 0 1 6-6v6H6Z" fill="#EA4335"/>
+                            <path d="M12 6a6 6 0 0 1 6 6h-6V6Z" fill="#4285F4"/>
+                            <path d="M18 12a6 6 0 0 1-6 6v-6h6Z" fill="#FBBC05"/>
+                            <path d="M12 18a6 6 0 0 1-6-6h6v6Z" fill="#34A853"/>
+                        </svg>
+                        Browse Google Photos
+                    </button>
 
                     <!-- Gallery List -->
                     <div class="gallery-container">
@@ -263,6 +303,69 @@
 
     <!-- Hidden canvas used for generating and assembling export packages -->
     <canvas id="export-canvas" style="display: none;"></canvas>
+
+    <!-- Google Photos Picker Modal -->
+    <div id="modal-google-photos" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-logo">
+                    <svg viewBox="0 0 24 24" width="24" height="24" style="margin-right: 8px; vertical-align: middle;">
+                        <path d="M6 12a6 6 0 0 1 6-6v6H6Z" fill="#EA4335"/>
+                        <path d="M12 6a6 6 0 0 1 6 6h-6V6Z" fill="#4285F4"/>
+                        <path d="M18 12a6 6 0 0 1-6 6v-6h6Z" fill="#FBBC05"/>
+                        <path d="M12 18a6 6 0 0 1-6-6h6v6Z" fill="#34A853"/>
+                    </svg>
+                    <h3>Google Photos Library</h3>
+                </div>
+                <button class="modal-close" id="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Auth state (hidden after login) -->
+                <div id="gphotos-auth-view" class="gphotos-auth-view">
+                    <div class="auth-icon">🔒</div>
+                    <h4>Access Your Google Photos</h4>
+                    <p>Connect your Google Account to safely browse and import your garden and backyard spaces.</p>
+                    <button id="btn-gphotos-login" class="btn btn-secondary btn-g-signin">
+                        <svg viewBox="0 0 24 24" width="18" height="18" class="icon-left" style="margin-right: 8px; vertical-align: middle;">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285f4"/>
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34a853"/>
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#fbbc05"/>
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#ea4335"/>
+                        </svg>
+                        Sign in with Google
+                    </button>
+                </div>
+                
+                <!-- Photos grid view (shown after login) -->
+                <div id="gphotos-grid-view" class="gphotos-grid-view hidden">
+                    <div class="user-profile-header">
+                        <span class="user-email">Connected: <strong>marki@gmail.com</strong></span>
+                        <button id="btn-gphotos-logout" class="btn-text-link">Sign out</button>
+                    </div>
+                    <p class="gphotos-instruction">Select yard or garden photos to import:</p>
+                    
+                    <div class="gphotos-grid">
+                        <div class="gphotos-item" data-src="assets/template_bare.png" data-name="Backyard Lawn.png">
+                            <img src="assets/template_bare.png" alt="Backyard Lawn">
+                            <div class="item-overlay"><span class="checkmark">✓</span></div>
+                        </div>
+                        <div class="gphotos-item" data-src="assets/google_photo_shade.png" data-name="Sideyard Shade.png">
+                            <img src="assets/google_photo_shade.png" alt="Sideyard Shade">
+                            <div class="item-overlay"><span class="checkmark">✓</span></div>
+                        </div>
+                        <div class="gphotos-item" data-src="assets/google_photo_mud.png" data-name="Muddy Slope.jpg">
+                            <img src="assets/google_photo_mud.png" alt="Muddy Slope">
+                            <div class="item-overlay"><span class="checkmark">✓</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="gphotos-actions">
+                        <button id="btn-gphotos-import" class="btn btn-primary" disabled>Import Selected Photos (0)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>

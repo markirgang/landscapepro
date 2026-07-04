@@ -20,7 +20,17 @@ const state = {
         '75201': { zone: '8a', climate: 'Hot Humid Subtropical', desc: 'Zone 8a: Min Temp 10°F to 15°F. Hot summers. Ideal for crape myrtles, salvias, and heat-tolerant perennials.' },
         '04401': { zone: '5a', climate: 'Cold Continental', desc: 'Zone 5a: Min Temp -20°F to -15°F. Long freezing winters. Requires northern forest plants like birches, spruces, and native wildflowers.' },
         '99501': { zone: '4b', climate: 'Subarctic', desc: 'Zone 4b: Min Temp -25°F to -20°F. Short growing season. Emphasize native subarctic shrubs, mosses, and high-altitude wild flora.' },
-        '96801': { zone: '12b', climate: 'Tropical Wet', desc: 'Zone 12b: Min Temp 55°F to 60°F. Year-round tropical. Flourishes with plumerias, palms, gingers, and exotic groundcover.' }
+        '96801': { zone: '12b', climate: 'Tropical Wet', desc: 'Zone 12b: Min Temp 55°F to 60°F. Year-round tropical. Flourishes with plumerias, palms, gingers, and exotic groundcover.' },
+        '79901': { zone: '8b', climate: 'Arid Desert', desc: 'Zone 8b (El Paso): Min Temp 15°F to 20°F. Dry and sunny. Native Chihuahuan desert plants, agaves, and drought-tolerant shrubs are ideal.' },
+        '85001': { zone: '9b', climate: 'Hot Arid Desert', desc: 'Zone 9b (Phoenix): Min Temp 25°F to 30°F. Extremely hot and dry. Perfect for majestic saguaros, barrel cacti, and desert yuccas.' },
+        '59001': { zone: '4b', climate: 'High Plains / Cold Semiarid', desc: 'Zone 4b (Billings): Min Temp -25°F to -20°F. Hardiest pines, junipers, and resilient native plains grasses are recommended.' },
+        '32801': { zone: '9b', climate: 'Humid Subtropical', desc: 'Zone 9b (Orlando): Min Temp 25°F to 30°F. Wet and humid. Thrives with palmettos, hibiscus, broad ferns, and tropical groundcovers.' },
+        '95814': { zone: '9b', climate: 'Interior Mediterranean', desc: 'Zone 9b (Sacramento): Min Temp 25°F to 30°F. Dry summers, wet winters. Excellent for olives, lavender, citrus, and salvias.' },
+        '20001': { zone: '7b', climate: 'Mid-Atlantic Temperate', desc: 'Zone 7b (Washington DC): Min Temp 5°F to 10°F. Humid summers. Great for boxwood, dogwoods, azaleas, and hydrangeas.' },
+        '02108': { zone: '6b', climate: 'Coastal New England', desc: 'Zone 6b (Boston): Min Temp -5°F to 0°F. Coastal winters. Suitable for hostas, rhododendrons, hydrangeas, and maples.' },
+        '97201': { zone: '8b', climate: 'Pacific Northwest Wet', desc: 'Zone 8b (Portland): Min Temp 15°F to 20°F. Mild and very wet. Ideal for lush ferns, mosses, hostas, and maples.' },
+        '55401': { zone: '4b', climate: 'Severe Continental', desc: 'Zone 4b (Minneapolis): Min Temp -25°F to -20°F. Extreme seasonal range. Hardiest local birches, pines, and native wildflowers.' },
+        '84101': { zone: '7a', climate: 'Intermountain Cold Semiarid', desc: 'Zone 7a (Salt Lake City): Min Temp 0°F to 5°F. Alpine valleys. Prefers yuccas, sagebrush, dwarf conifers, and rock plants.' }
     },
     // Cache for generated concept images: { imageId: { concept1: dataUrl, concept2: dataUrl, concept3: dataUrl } }
     conceptCache: {},
@@ -65,6 +75,17 @@ const selectFormatAll = document.getElementById('export-format-all');
 
 const exportCanvas = document.getElementById('export-canvas');
 
+// Google Photos DOM References
+const btnGooglePhotos = document.getElementById('btn-google-photos');
+const modalGooglePhotos = document.getElementById('modal-google-photos');
+const btnCloseModal = document.getElementById('btn-close-modal');
+const btnGphotosLogin = document.getElementById('btn-gphotos-login');
+const btnGphotosLogout = document.getElementById('btn-gphotos-logout');
+const gphotosAuthView = document.getElementById('gphotos-auth-view');
+const gphotosGridView = document.getElementById('gphotos-grid-view');
+const gphotosItems = document.querySelectorAll('.gphotos-item');
+const btnGphotosImport = document.getElementById('btn-gphotos-import');
+
 // -------------------------------------------------------------
 // INITIALIZATION
 // -------------------------------------------------------------
@@ -76,6 +97,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initGenerateAction();
     initTabs();
     initExportActions();
+    initGooglePhotos();
     
     // Load default demo space
     loadDemoSpace();
@@ -397,16 +419,16 @@ function triggerAIGeneration() {
                     'concept-2': 'assets/template_zen.png',
                     'concept-3': 'assets/template_zen.png'
                 };
-            } else { // meadow (wildflowers)
-                // Draw a colorful wildflower overlay on top of the cottage template to represent the meadow
-                const meadowImg1 = await generateProceduralConcepts(baseSrc, soil, sun, water, perennialRatio, 'meadow', 1);
-                const meadowImg2 = await generateProceduralConcepts(baseSrc, soil, sun, water, perennialRatio, 'meadow', 2);
-                const meadowImg3 = await generateProceduralConcepts(baseSrc, soil, sun, water, perennialRatio, 'meadow', 3);
+            } else {
+                // Any other theme: draw procedurally on top of the bare yard template image
+                const c1 = await generateProceduralConcepts(baseSrc, soil, sun, water, perennialRatio, theme, 1);
+                const c2 = await generateProceduralConcepts(baseSrc, soil, sun, water, perennialRatio, theme, 2);
+                const c3 = await generateProceduralConcepts(baseSrc, soil, sun, water, perennialRatio, theme, 3);
                 
                 state.conceptCache['demo'] = {
-                    'concept-1': meadowImg1,
-                    'concept-2': meadowImg2,
-                    'concept-3': meadowImg3
+                    'concept-1': c1,
+                    'concept-2': c2,
+                    'concept-3': c3
                 };
             }
         } else {
@@ -573,8 +595,26 @@ function drawPlantOverlay(ctx, w, h, soil, sun, water, ratio, theme, conceptInde
             drawXeriscapePlant(ctx, plant.type, plant.rVal);
         } else if (theme === 'zen') {
             drawZenPlant(ctx, plant.type, plant.rVal);
-        } else { // meadow
+        } else if (theme === 'meadow') {
             drawMeadowPlant(ctx, plant.type, plant.rVal, ratio);
+        } else if (theme === 'mediterranean') {
+            drawMediterraneanPlant(ctx, plant.type, plant.rVal);
+        } else if (theme === 'rain-garden') {
+            drawRainGardenPlant(ctx, plant.type, plant.rVal);
+        } else if (theme === 'desert-oasis') {
+            drawDesertOasisPlant(ctx, plant.type, plant.rVal);
+        } else if (theme === 'woodland-shade') {
+            drawWoodlandShadePlant(ctx, plant.type, plant.rVal);
+        } else if (theme === 'formal-french') {
+            drawFormalFrenchPlant(ctx, plant.type, plant.rVal);
+        } else if (theme === 'tropical-jungle') {
+            drawTropicalJunglePlant(ctx, plant.type, plant.rVal);
+        } else if (theme === 'pollinator') {
+            drawPollinatorPlant(ctx, plant.type, plant.rVal);
+        } else if (theme === 'rock-alpine') {
+            drawRockAlpinePlant(ctx, plant.type, plant.rVal);
+        } else {
+            drawCottagePlant(ctx, plant.type, plant.rVal, ratio);
         }
         
         ctx.restore();
@@ -1019,4 +1059,654 @@ function triggerDownload(url, filename) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// -------------------------------------------------------------
+// NEW EXPANDED GARDEN THEMES DRAWING METHODS
+// -------------------------------------------------------------
+
+function drawMediterraneanPlant(ctx, type, rVal) {
+    ctx.shadowColor = 'rgba(0,0,0,0.1)';
+    ctx.shadowBlur = 4;
+    
+    if (type === 'background') {
+        // Olive tree (dusty green leaves, slender branches)
+        ctx.strokeStyle = '#3e2723';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(-10, -35, 0, -65);
+        ctx.stroke();
+        
+        ctx.strokeStyle = '#4e342e';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(0, -65);
+        ctx.quadraticCurveTo(-20, -75, -25, -60);
+        ctx.moveTo(0, -65);
+        ctx.quadraticCurveTo(20, -75, 25, -55);
+        ctx.stroke();
+        
+        // Dusty grey-green foliage
+        const drawOliveLeaves = (lx, ly) => {
+            ctx.fillStyle = 'rgba(107, 114, 92, 0.85)';
+            for (let i = 0; i < 6; i++) {
+                ctx.beginPath();
+                ctx.arc(lx + Math.sin(i)*10, ly + Math.cos(i)*6, 8, 0, Math.PI*2);
+                ctx.fill();
+            }
+        };
+        drawOliveLeaves(-25, -60);
+        drawOliveLeaves(25, -55);
+        drawOliveLeaves(0, -65);
+    } else if (type === 'midground') {
+        // Lavender / Salvia clumps (grey-green base, purple flowering spikes)
+        ctx.fillStyle = '#4b5320'; // olive green foliage
+        ctx.beginPath();
+        ctx.arc(0, -8, 16, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Purple spikes
+        ctx.fillStyle = '#8b5cf6';
+        for (let i = 0; i < 8; i++) {
+            const h = 25 + rVal * 15;
+            const angle = -0.5 + (i * 1.0) / 7;
+            ctx.save();
+            ctx.rotate(angle);
+            ctx.fillRect(-2, -h, 4, h - 8);
+            // Flower dots
+            ctx.fillStyle = '#a78bfa';
+            ctx.beginPath();
+            ctx.arc(0, -h, 3.5, 0, Math.PI*2);
+            ctx.arc(0, -h + 5, 3, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+            ctx.fillStyle = '#8b5cf6'; // restore
+        }
+    } else {
+        // Terracotta pot with red geraniums
+        ctx.fillStyle = '#c2410c'; // Terracotta orange
+        ctx.beginPath();
+        ctx.moveTo(-10, 0);
+        ctx.lineTo(10, 0);
+        ctx.lineTo(7, 12);
+        ctx.lineTo(-7, 12);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Green leaves inside pot
+        ctx.fillStyle = '#15803d';
+        ctx.beginPath();
+        ctx.arc(0, -3, 9, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Red geranium dots
+        ctx.fillStyle = '#ef4444';
+        for (let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.arc(-6 + i*3, -4 - (Math.sin(i)*2), 3, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
+}
+
+function drawRainGardenPlant(ctx, type, rVal) {
+    if (type === 'background') {
+        // Tall river rushes / reeds
+        ctx.strokeStyle = '#0f5132';
+        ctx.lineWidth = 2.5;
+        const rushCount = 4 + Math.floor(rVal * 3);
+        for (let i = 0; i < rushCount; i++) {
+            const rx = -12 + i * 8;
+            const len = 65 + rVal * 25;
+            ctx.beginPath();
+            ctx.moveTo(rx, 0);
+            ctx.quadraticCurveTo(rx + Math.sin(i)*6, -len*0.5, rx - 5, -len);
+            ctx.stroke();
+            
+            // Brown seed head
+            ctx.fillStyle = '#422006';
+            ctx.beginPath();
+            ctx.ellipse(rx - 5, -len, 3, 8, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    } else if (type === 'midground') {
+        // Wet Ferns (lush green pinnate leaves)
+        ctx.fillStyle = '#198754';
+        for (let f = 0; f < 8; f++) {
+            ctx.save();
+            const angle = -0.9 + (f * 1.8) / 7;
+            ctx.rotate(angle);
+            
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(8, -12, 0, -28 - rVal * 12);
+            ctx.quadraticCurveTo(-8, -12, 0, 0);
+            ctx.fill();
+            
+            // Side leaflets
+            ctx.fillStyle = '#146c43';
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath();
+                ctx.arc(4, -8 - (i*4), 3, 0, Math.PI*2);
+                ctx.arc(-4, -8 - (i*4), 3, 0, Math.PI*2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#198754';
+            ctx.restore();
+        }
+    } else {
+        // Bog flowers (Blue Flag Iris)
+        ctx.strokeStyle = '#146c43';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-5, -28);
+        ctx.stroke();
+        
+        // Iris blooms
+        ctx.fillStyle = '#3b82f6';
+        ctx.beginPath();
+        ctx.arc(-5, -28, 5, 0, Math.PI*2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#60a5fa';
+        ctx.beginPath();
+        ctx.arc(-8, -25, 4, 0, Math.PI*2);
+        ctx.arc(-2, -25, 4, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+function drawDesertOasisPlant(ctx, type, rVal) {
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 5;
+
+    if (type === 'background') {
+        // Majestic Saguaro Cactus
+        ctx.fillStyle = '#2d6a4f';
+        ctx.strokeStyle = '#1b4332';
+        ctx.lineWidth = 2;
+        
+        // Main stem
+        const trunkW = 12;
+        const trunkH = 80 + rVal * 30;
+        ctx.beginPath();
+        ctx.roundRect(-trunkW/2, -trunkH, trunkW, trunkH, [6, 6, 0, 0]);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Left arm
+        ctx.beginPath();
+        ctx.moveTo(-trunkW/2, -trunkH * 0.4);
+        ctx.lineTo(-trunkW/2 - 14, -trunkH * 0.4);
+        ctx.lineTo(-trunkW/2 - 14, -trunkH * 0.7);
+        ctx.lineTo(-trunkW/2 - 4, -trunkH * 0.7);
+        ctx.lineTo(-trunkW/2 - 4, -trunkH * 0.48);
+        ctx.lineTo(-trunkW/2, -trunkH * 0.48);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Right arm
+        ctx.beginPath();
+        ctx.moveTo(trunkW/2, -trunkH * 0.5);
+        ctx.lineTo(trunkW/2 + 12, -trunkH * 0.5);
+        ctx.lineTo(trunkW/2 + 12, -trunkH * 0.78);
+        ctx.lineTo(trunkW/2 + 4, -trunkH * 0.78);
+        ctx.lineTo(trunkW/2 + 4, -trunkH * 0.58);
+        ctx.lineTo(trunkW/2, -trunkH * 0.58);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    } else if (type === 'midground') {
+        // Prickly Pear Cactus
+        ctx.fillStyle = '#40916c';
+        ctx.strokeStyle = '#f59e0b'; // tiny golden needles outline
+        ctx.lineWidth = 0.8;
+        
+        // Base lobe
+        ctx.beginPath();
+        ctx.ellipse(0, -12, 12, 16, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Upper lobes
+        ctx.save();
+        ctx.translate(-8, -24);
+        ctx.rotate(-0.4);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 9, 12, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        
+        ctx.save();
+        ctx.translate(8, -22);
+        ctx.rotate(0.3);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 8, 11, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        
+        // Pink fruits on tops of pads
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath();
+        ctx.arc(-14, -34, 3, 0, Math.PI*2);
+        ctx.arc(14, -30, 3, 0, Math.PI*2);
+        ctx.fill();
+    } else {
+        // Agave pup (small, spiky rosette)
+        ctx.fillStyle = '#52b788';
+        ctx.strokeStyle = '#2d6a4f';
+        ctx.lineWidth = 1.2;
+        
+        for (let i = 0; i < 8; i++) {
+            ctx.save();
+            const angle = -Math.PI * 0.8 + (i * Math.PI * 0.6) / 7;
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(6, -6, 0, -18);
+            ctx.quadraticCurveTo(-6, -6, 0, 0);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+}
+
+function drawWoodlandShadePlant(ctx, type, rVal) {
+    if (type === 'background') {
+        // Red Maple sapling (airy silhouette)
+        ctx.strokeStyle = '#3e2723';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(-8, -35, -4, -70);
+        ctx.stroke();
+        
+        // Branches
+        ctx.strokeStyle = '#4e342e';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-6, -45);
+        ctx.lineTo(-20, -58);
+        ctx.moveTo(-5, -55);
+        ctx.lineTo(15, -68);
+        ctx.stroke();
+        
+        // Starry red leaves
+        ctx.fillStyle = '#b91c1c';
+        const leafClusters = [
+            { x: -4, y: -70 },
+            { x: -20, y: -58 },
+            { x: 15, y: -68 }
+        ];
+        leafClusters.forEach(c => {
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.arc(c.x + Math.sin(i)*8, c.y + Math.cos(i)*5, 5, 0, Math.PI*2);
+                ctx.fill();
+            }
+        });
+    } else if (type === 'midground') {
+        // Shade Woodland Hostas (broad variegated foliage)
+        ctx.fillStyle = '#0f5132'; // dark green
+        ctx.strokeStyle = '#e0e7ff'; // white margins
+        ctx.lineWidth = 1.2;
+        
+        for (let i = 0; i < 9; i++) {
+            ctx.save();
+            const angle = -Math.PI * 0.8 + (i * Math.PI * 0.6) / 8;
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(12, -8, 0, -22 - rVal*8);
+            ctx.quadraticCurveTo(-12, -8, 0, 0);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+    } else {
+        // Creeping forest moss mounds
+        ctx.fillStyle = '#3f6212';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 20 + rVal * 15, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Light moss accents
+        ctx.fillStyle = '#65a30d';
+        ctx.beginPath();
+        ctx.ellipse(-4, -1, 10 + rVal * 8, 3, -0.1, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function drawFormalFrenchPlant(ctx, type, rVal) {
+    ctx.shadowColor = 'rgba(0,0,0,0.1)';
+    ctx.shadowBlur = 4;
+
+    if (type === 'background') {
+        // Neat Conical Boxwood Topiary
+        ctx.fillStyle = '#14532d';
+        ctx.beginPath();
+        ctx.moveTo(0, -75);
+        ctx.lineTo(-20, 0);
+        ctx.lineTo(20, 0);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Symmetrical trunk
+        ctx.strokeStyle = '#292524';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, 8);
+        ctx.stroke();
+    } else if (type === 'midground') {
+        // Boxwood Globe
+        ctx.fillStyle = '#165b33';
+        ctx.beginPath();
+        ctx.arc(0, -18, 18, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Small stem
+        ctx.strokeStyle = '#292524';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -4);
+        ctx.stroke();
+    } else {
+        // Neat rectangular border hedge
+        ctx.fillStyle = '#1b4332';
+        ctx.fillRect(-22, -10, 44, 10);
+        
+        ctx.strokeStyle = '#40916c';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-22, -10, 44, 10);
+    }
+}
+
+function drawTropicalJunglePlant(ctx, type, rVal) {
+    if (type === 'background') {
+        // Broad fan palm leaf branch
+        ctx.strokeStyle = '#1b4332';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(-15, -30, 20, -70);
+        ctx.stroke();
+        
+        // Palm leaflets radiating outwards
+        ctx.strokeStyle = '#2d6a4f';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 15; i++) {
+            const px = 10 + i * 1.5;
+            const py = -20 - i * 3.5;
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(px - 16 - (rVal*10), py + 12 + (i*0.5));
+            ctx.stroke();
+        }
+    } else if (type === 'midground') {
+        // Monstera leaves / Elephant ears
+        ctx.fillStyle = '#0f5132';
+        for (let i = 0; i < 5; i++) {
+            ctx.save();
+            const angle = -0.6 + i * 0.3;
+            ctx.rotate(angle);
+            
+            // Large heart leaf
+            ctx.beginPath();
+            ctx.ellipse(0, -22 - rVal*8, 16, 22, 0.1, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Leaf slits (drawn as background colored lines)
+            ctx.strokeStyle = 'rgba(20,26,38,0.7)'; // blend with mud/mulch background
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-10, -26);
+            ctx.lineTo(-4, -20);
+            ctx.moveTo(10, -26);
+            ctx.lineTo(4, -20);
+            ctx.stroke();
+            ctx.restore();
+        }
+    } else {
+        // Bird of paradise flower (exotic shape, orange and neon blue)
+        ctx.strokeStyle = '#1b4332';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-5, -30);
+        ctx.stroke();
+        
+        // Orange flower beak
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.moveTo(-5, -30);
+        ctx.lineTo(-20, -35);
+        ctx.lineTo(-5, -42);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Neon blue spikes
+        ctx.fillStyle = '#06b6d4';
+        ctx.beginPath();
+        ctx.moveTo(-5, -30);
+        ctx.lineTo(-2, -48);
+        ctx.lineTo(-8, -44);
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+function drawPollinatorPlant(ctx, type, rVal) {
+    // Dense flower fields for bees
+    if (type === 'background') {
+        // Tall Coneflowers (Purple coneflowers)
+        ctx.strokeStyle = '#0f766e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-4, -55 - rVal*15);
+        ctx.stroke();
+        
+        // Flower petals
+        ctx.fillStyle = '#df73ff'; // magenta
+        ctx.beginPath();
+        ctx.ellipse(-4, -55 - rVal*15, 12, 4, 0.2, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Prominent cone
+        ctx.fillStyle = '#78350f'; // copper brown cone
+        ctx.beginPath();
+        ctx.arc(-4, -58 - rVal*15, 4.5, 0, Math.PI*2);
+        ctx.fill();
+    } else if (type === 'midground') {
+        // Butterfly bush (dense clustering of lilac florets)
+        ctx.fillStyle = '#065f46';
+        ctx.beginPath();
+        ctx.arc(0, -10, 20, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Lilac flower spires
+        ctx.fillStyle = '#a78bfa';
+        for (let i = 0; i < 6; i++) {
+            const h = 18 + rVal * 10;
+            const fx = -15 + i*6;
+            ctx.fillRect(fx - 2, -h - 8, 4, h);
+            ctx.beginPath();
+            ctx.arc(fx, -h - 8, 4, 0, Math.PI*2);
+            ctx.fill();
+        }
+        
+        // Draw tiny honeybee dots buzzing around!
+        ctx.fillStyle = '#fbbf24'; // yellow body
+        ctx.beginPath();
+        ctx.ellipse(18, -32, 2.5, 1.8, 0.2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#111827'; // black stripes
+        ctx.fillRect(17, -33, 1, 3.5);
+    } else {
+        // Creeping phlox (dense carpet of tiny pink flowers)
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 16 + rVal * 10, 5, 0, 0, Math.PI*2);
+        ctx.fill();
+        // Individual blossoms
+        ctx.fillStyle = '#f472b6';
+        for (let i = 0; i < 6; i++) {
+            ctx.beginPath();
+            ctx.arc(-8 + i*3.2, -1 - (Math.cos(i)*1.5), 2.5, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
+}
+
+function drawRockAlpinePlant(ctx, type, rVal) {
+    if (type === 'background') {
+        // Dwarf conifer (neat small pine tree shape)
+        ctx.fillStyle = '#064e3b';
+        ctx.beginPath();
+        ctx.moveTo(0, -55 - rVal*15);
+        ctx.lineTo(-14, -20);
+        ctx.lineTo(14, -20);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.moveTo(0, -35);
+        ctx.lineTo(-18, 0);
+        ctx.lineTo(18, 0);
+        ctx.closePath();
+        ctx.fill();
+    } else if (type === 'midground') {
+        // Creeping Sedum / Stonecrop (Succulent leaves, pink highlights)
+        ctx.fillStyle = '#475569'; // slate grey stone base
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 15, 6, 0, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Creeping pink sedum succulent cover
+        ctx.fillStyle = '#db2777'; // dark pink
+        for (let i = 0; i < 7; i++) {
+            ctx.beginPath();
+            ctx.arc(-10 + i * 3.5, -4 - (Math.sin(i)*1.5), 3, 0, Math.PI*2);
+            ctx.fill();
+        }
+    } else {
+        // Alpine rock cluster and moss
+        ctx.fillStyle = '#4b5563'; // Rock grey
+        ctx.beginPath();
+        ctx.moveTo(-10, 0);
+        ctx.lineTo(-4, -8);
+        ctx.lineTo(6, -6);
+        ctx.lineTo(10, 0);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Moss accent
+        ctx.fillStyle = '#4d7c0f';
+        ctx.beginPath();
+        ctx.ellipse(4, -1, 6, 2, 0.1, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+// -------------------------------------------------------------
+// GOOGLE PHOTOS CLIENT-SIDE MOCK INTEGRATION
+// -------------------------------------------------------------
+function initGooglePhotos() {
+    // Open Google Photos Modal
+    btnGooglePhotos.addEventListener('click', () => {
+        modalGooglePhotos.classList.remove('hidden');
+    });
+
+    // Close Modal Button
+    btnCloseModal.addEventListener('click', () => {
+        modalGooglePhotos.classList.add('hidden');
+    });
+
+    // Close on overlay click
+    modalGooglePhotos.addEventListener('click', (e) => {
+        if (e.target === modalGooglePhotos) {
+            modalGooglePhotos.classList.add('hidden');
+        }
+    });
+
+    // Simulate Google Sign-in Connection
+    btnGphotosLogin.addEventListener('click', () => {
+        btnGphotosLogin.disabled = true;
+        btnGphotosLogin.innerHTML = `
+            <span class="loading-spinner" style="border-top-color: #3b82f6; width: 14px; height: 14px; margin-right: 8px; display: inline-block; vertical-align: middle;"></span>
+            Connecting to Google...
+        `;
+        
+        setTimeout(() => {
+            gphotosAuthView.classList.add('hidden');
+            gphotosGridView.classList.remove('hidden');
+            
+            btnGphotosLogin.disabled = false;
+            btnGphotosLogin.innerHTML = `Sign in with Google`;
+        }, 1100);
+    });
+
+    // Google Sign-out Simulation
+    btnGphotosLogout.addEventListener('click', () => {
+        gphotosGridView.classList.add('hidden');
+        gphotosAuthView.classList.remove('hidden');
+        // Reset selections
+        gphotosItems.forEach(el => el.classList.remove('selected'));
+        updateImportButtonState();
+    });
+
+    // Photo Selection Toggle
+    gphotosItems.forEach(item => {
+        item.addEventListener('click', () => {
+            item.classList.toggle('selected');
+            updateImportButtonState();
+        });
+    });
+
+    // Import Action Handler
+    btnGphotosImport.addEventListener('click', () => {
+        const selectedItems = document.querySelectorAll('.gphotos-item.selected');
+        let processed = 0;
+        
+        selectedItems.forEach(item => {
+            const src = item.dataset.src;
+            const name = item.dataset.name;
+            const id = 'img_gphoto_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            
+            const imageObject = {
+                id: id,
+                src: src,
+                name: name,
+                isDemo: false
+            };
+            
+            state.images.push(imageObject);
+            addGalleryItem(imageObject);
+            processed++;
+            
+            if (processed === selectedItems.length) {
+                // Select the last imported photo as active workspace photo
+                selectWorkspaceImage(id);
+                // Clear selection states, close modal
+                gphotosItems.forEach(el => el.classList.remove('selected'));
+                updateImportButtonState();
+                modalGooglePhotos.classList.add('hidden');
+            }
+        });
+    });
+}
+
+function updateImportButtonState() {
+    const selectedItems = document.querySelectorAll('.gphotos-item.selected');
+    btnGphotosImport.textContent = `Import Selected Photos (${selectedItems.length})`;
+    btnGphotosImport.disabled = selectedItems.length === 0;
 }
