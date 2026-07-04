@@ -34,7 +34,8 @@ const state = {
     },
     // Cache for generated concept images: { imageId: { concept1: dataUrl, concept2: dataUrl, concept3: dataUrl } }
     conceptCache: {},
-    activeTheme: 'cottage'
+    activeTheme: 'cottage',
+    activeSeason: 'summer'
 };
 
 // UI Elements
@@ -48,6 +49,12 @@ const sunSelect = document.getElementById('sun-amount');
 const waterSelect = document.getElementById('water-amount');
 const perennialSlider = document.getElementById('perennial-ratio');
 const perennialLabel = document.getElementById('plant-ratio-label');
+
+const areaLengthInput = document.getElementById('area-length');
+const areaWidthInput = document.getElementById('area-width');
+const areaSqftLabel = document.getElementById('area-sqft');
+const seasonSelect = document.getElementById('target-season');
+const seasonalPaletteBar = document.getElementById('seasonal-palette-bar');
 
 const btnGenerate = document.getElementById('btn-generate');
 const scannerBar = document.getElementById('scanner-bar');
@@ -98,6 +105,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initExportActions();
     initGooglePhotos();
+    initDimensionsAndSeason();
     
     // Load default demo space
     loadDemoSpace();
@@ -551,10 +559,20 @@ function drawPlantOverlay(ctx, w, h, soil, sun, water, ratio, theme, conceptInde
     ctx.fill();
 
     // 2. Draw procedural plants
-    // Decide density based on conceptIndex (Concept 2 is lush/dense, 3 is sparse/minimalist)
-    let plantCount = 18;
-    if (conceptIndex === 2) plantCount = 28; // Lush
-    if (conceptIndex === 3) plantCount = 9;  // Minimalist
+    // Calculate square footage based on DOM inputs
+    const aLen = parseFloat(areaLengthInput.value) || 20;
+    const aWid = parseFloat(areaWidthInput.value) || 15;
+    const sqft = aLen * aWid;
+    
+    // Base density: 1 plant per 18 sq ft, scaled
+    let baseDensity = Math.round(sqft / 18);
+    // Clamp to ensure visual stability (between 6 and 48 plants)
+    let plantCount = Math.max(6, Math.min(48, baseDensity));
+    
+    // Adjust based on concept variant
+    if (conceptIndex === 2) plantCount = Math.round(plantCount * 1.5); // Lush
+    if (conceptIndex === 3) plantCount = Math.round(plantCount * 0.5); // Minimalist
+    plantCount = Math.max(3, plantCount); // Absolute floor
 
     // Build plant coordinate slots and sort them from back to front (y-axis coordinate)
     // this handles layering correctly so background plants are drawn first.
@@ -588,33 +606,36 @@ function drawPlantOverlay(ctx, w, h, soil, sun, water, ratio, theme, conceptInde
         const scale = 0.7 + plant.rVal * 0.6;
         ctx.scale(scale, scale);
         
-        // Adjust style parameters
-        if (theme === 'cottage') {
-            drawCottagePlant(ctx, plant.type, plant.rVal, ratio);
-        } else if (theme === 'xeriscape') {
-            drawXeriscapePlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'zen') {
-            drawZenPlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'meadow') {
-            drawMeadowPlant(ctx, plant.type, plant.rVal, ratio);
-        } else if (theme === 'mediterranean') {
-            drawMediterraneanPlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'rain-garden') {
-            drawRainGardenPlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'desert-oasis') {
-            drawDesertOasisPlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'woodland-shade') {
-            drawWoodlandShadePlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'formal-french') {
-            drawFormalFrenchPlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'tropical-jungle') {
-            drawTropicalJunglePlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'pollinator') {
-            drawPollinatorPlant(ctx, plant.type, plant.rVal);
-        } else if (theme === 'rock-alpine') {
-            drawRockAlpinePlant(ctx, plant.type, plant.rVal);
-        } else {
-            drawCottagePlant(ctx, plant.type, plant.rVal, ratio);
+        // If it is winter, draw the winter version (bare branches, snow) and skip theme styling
+        if (!checkWinterOverride(ctx, plant.type, plant.rVal)) {
+            // Adjust style parameters
+            if (theme === 'cottage') {
+                drawCottagePlant(ctx, plant.type, plant.rVal, ratio);
+            } else if (theme === 'xeriscape') {
+                drawXeriscapePlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'zen') {
+                drawZenPlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'meadow') {
+                drawMeadowPlant(ctx, plant.type, plant.rVal, ratio);
+            } else if (theme === 'mediterranean') {
+                drawMediterraneanPlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'rain-garden') {
+                drawRainGardenPlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'desert-oasis') {
+                drawDesertOasisPlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'woodland-shade') {
+                drawWoodlandShadePlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'formal-french') {
+                drawFormalFrenchPlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'tropical-jungle') {
+                drawTropicalJunglePlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'pollinator') {
+                drawPollinatorPlant(ctx, plant.type, plant.rVal);
+            } else if (theme === 'rock-alpine') {
+                drawRockAlpinePlant(ctx, plant.type, plant.rVal);
+            } else {
+                drawCottagePlant(ctx, plant.type, plant.rVal, ratio);
+            }
         }
         
         ctx.restore();
@@ -1709,4 +1730,205 @@ function updateImportButtonState() {
     const selectedItems = document.querySelectorAll('.gphotos-item.selected');
     btnGphotosImport.textContent = `Import Selected Photos (${selectedItems.length})`;
     btnGphotosImport.disabled = selectedItems.length === 0;
+}
+
+// -------------------------------------------------------------
+// AREA DIMENSIONS & SEASONAL ENGINE
+// -------------------------------------------------------------
+function initDimensionsAndSeason() {
+    // Update square footage dynamically
+    const updateSqft = () => {
+        const l = parseFloat(areaLengthInput.value) || 0;
+        const w = parseFloat(areaWidthInput.value) || 0;
+        areaSqftLabel.textContent = Math.round(l * w);
+        // Automatically regenerate overlays when dimensions change!
+        triggerAIGeneration();
+    };
+    // Debounce regeneration slightly on inputs so it's smooth
+    let inputTimeout;
+    const debouncedUpdateSqft = () => {
+        const l = parseFloat(areaLengthInput.value) || 0;
+        const w = parseFloat(areaWidthInput.value) || 0;
+        areaSqftLabel.textContent = Math.round(l * w);
+        
+        clearTimeout(inputTimeout);
+        inputTimeout = setTimeout(() => {
+            triggerAIGeneration();
+        }, 400); // 400ms debounce
+    };
+    
+    areaLengthInput.addEventListener('input', debouncedUpdateSqft);
+    areaWidthInput.addEventListener('input', debouncedUpdateSqft);
+    
+    // Update season
+    seasonSelect.addEventListener('change', (e) => {
+        state.activeSeason = e.target.value;
+        updateSeasonalPaletteUI();
+        triggerAIGeneration(); // regenerate overlay with seasonal colors!
+    });
+    
+    // Hook theme change to update palette indicator immediately
+    themeSelect.addEventListener('change', (e) => {
+        updateSeasonalPaletteUI();
+    });
+    
+    // Initialize color dots
+    updateSeasonalPaletteUI();
+}
+
+function updateSeasonalPaletteUI() {
+    const colorsInfo = getSeasonalColors(state.activeTheme, state.activeSeason);
+    seasonalPaletteBar.innerHTML = '';
+    colorsInfo.bloomColors.forEach(color => {
+        const dot = document.createElement('span');
+        dot.className = 'color-dot';
+        dot.style.display = 'inline-block';
+        dot.style.width = '18px';
+        dot.style.height = '18px';
+        dot.style.borderRadius = '50%';
+        dot.style.border = '1.5px solid rgba(255,255,255,0.2)';
+        dot.style.backgroundColor = color;
+        dot.title = color;
+        seasonalPaletteBar.appendChild(dot);
+    });
+}
+
+function getSeasonalColors(theme, season) {
+    // Default green background
+    let bgGreen = '#14532d';
+    let leaves = ['#15803d', '#166534'];
+    let blooms = ['#ec4899', '#db2777', '#f43f5e', '#e11d48'];
+
+    if (season === 'spring') {
+        bgGreen = '#14532d';
+        leaves = ['#86efac', '#a3e635', '#4ade80'];
+        // Pastels
+        if (theme === 'cottage' || theme === 'pollinator') {
+            blooms = ['#fbcfe8', '#fef08a', '#ddd6fe', '#c084fc', '#bfdbfe']; // pink, yellow, lilac, lavender, light blue
+        } else if (theme === 'xeriscape' || theme === 'desert-oasis') {
+            blooms = ['#fed7aa', '#fef08a', '#fecaca']; // peach, pale yellow, pale pink
+        } else if (theme === 'zen' || theme === 'woodland-shade' || theme === 'rain-garden') {
+            blooms = ['#a7f3d0', '#e2e8f0', '#c084fc']; // mint, soft slate, violet iris
+        } else {
+            blooms = ['#fbcfe8', '#fef08a', '#bfdbfe']; // meadow pastels
+        }
+    } else if (season === 'summer') {
+        bgGreen = '#064e3b';
+        leaves = ['#15803d', '#166534', '#047857'];
+        // Vibrant full tones
+        if (theme === 'cottage' || theme === 'pollinator') {
+            blooms = ['#db2777', '#e11d48', '#2563eb', '#ca8a04', '#7c3aed']; // hot pink, red, blue, gold, violet
+        } else if (theme === 'xeriscape' || theme === 'desert-oasis') {
+            blooms = ['#ea580c', '#d97706', '#be123c']; // orange, amber, desert red
+        } else if (theme === 'zen' || theme === 'woodland-shade' || theme === 'rain-garden') {
+            blooms = ['#059669', '#3b82f6', '#8b5cf6']; // emerald, rich blue, purple iris
+        } else {
+            blooms = ['#ef4444', '#ca8a04', '#3b82f6']; // meadow red, yellow, blue
+        }
+    } else if (season === 'autumn') {
+        bgGreen = '#78350f'; // reddish mulch
+        leaves = ['#ea580c', '#d97706', '#b45309', '#ca8a04']; // orange, amber, gold
+        // Warm tones
+        if (theme === 'cottage' || theme === 'pollinator') {
+            blooms = ['#b91c1c', '#78350f', '#eab308', '#d97706']; // bronze, deep red, mum yellow, amber
+        } else if (theme === 'xeriscape' || theme === 'desert-oasis') {
+            blooms = ['#9a3412', '#7c2d12', '#ea580c']; // rust orange, terracotta
+        } else if (theme === 'zen' || theme === 'woodland-shade' || theme === 'rain-garden') {
+            blooms = ['#991b1b', '#7f1d1d', '#b45309']; // crimson maple red, dark copper
+        } else {
+            blooms = ['#d97706', '#ea580c', '#eab308']; // golden autumn meadow
+        }
+    } else if (season === 'winter') {
+        bgGreen = '#1c1917'; // cold stone/mulch
+        leaves = ['#064e3b', '#022c22', '#64748b']; // evergreens, dark slate pines
+        // Frosted tones / structural winter stems
+        if (theme === 'cottage' || theme === 'pollinator') {
+            blooms = ['#be123c', '#ffffff', '#e2e8f0', '#94a3b8']; // red berries, snow white, frosted grey
+        } else if (theme === 'xeriscape' || theme === 'desert-oasis') {
+            blooms = ['#7c2d12', '#451a03', '#ffffff']; // dry woody stems, white snow dust
+        } else if (theme === 'zen' || theme === 'woodland-shade' || theme === 'rain-garden') {
+            blooms = ['#ffffff', '#cbd5e1', '#0f172a']; // white snow heaps, icy slate, dark twigs
+        } else {
+            blooms = ['#ffffff', '#94a3b8', '#374151']; // frosted meadow stalks
+        }
+    }
+
+    return { bgGreen, leafColors: leaves, bloomColors: blooms };
+}
+
+function checkWinterOverride(ctx, type, rVal) {
+    if (state.activeSeason !== 'winter') return false;
+    
+    ctx.shadowColor = 'rgba(0,0,0,0.1)';
+    ctx.shadowBlur = 3;
+
+    if (type === 'background') {
+        // Bare woody branches
+        ctx.strokeStyle = '#374151'; // dark brown-grey twig
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(-8, -35, -2, -75);
+        ctx.stroke();
+        
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(-4, -40);
+        ctx.quadraticCurveTo(-18, -55, -22, -45);
+        ctx.moveTo(-3, -55);
+        ctx.quadraticCurveTo(15, -65, 20, -52);
+        ctx.stroke();
+        
+        // Tiny red berries
+        ctx.fillStyle = '#be123c'; // red winter berry
+        ctx.beginPath();
+        ctx.arc(-22, -45, 3, 0, Math.PI*2);
+        ctx.arc(20, -52, 3, 0, Math.PI*2);
+        ctx.arc(-2, -75, 3, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Snow caps on branches
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(-2, -78, 5, 2.5, 0, 0, Math.PI*2);
+        ctx.fill();
+    } else if (type === 'midground') {
+        // Dormant/frosted grass clump
+        ctx.strokeStyle = '#475569'; // dormant slate
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 7; i++) {
+            const h = 20 + rVal * 10;
+            const angle = -0.5 + (i * 1.0) / 6;
+            ctx.save();
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -h);
+            ctx.stroke();
+            ctx.restore();
+        }
+        
+        // Snow pile at base
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 16, 5, 0, 0, Math.PI*2);
+        ctx.fill();
+    } else {
+        // Snow mound with small grey rock
+        ctx.fillStyle = '#64748b'; // grey rock
+        ctx.beginPath();
+        ctx.moveTo(-8, 0);
+        ctx.lineTo(-4, -6);
+        ctx.lineTo(4, -5);
+        ctx.lineTo(8, 0);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.fillStyle = '#ffffff'; // snow cap
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 12, 4, 0, 0, Math.PI*2);
+        ctx.fill();
+    }
+    
+    return true;
 }

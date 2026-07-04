@@ -115,11 +115,33 @@
                     </div>
                 </div>
 
+                <!-- Section 2.5: Area Dimensions -->
+                <div class="control-group">
+                    <h2 class="section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon"><path d="M2 22s1-1 1-2c0-3.3 2.7-6 6-6h6c3.3 0 6 2.7 6 6 0 1 1 2 1 2V2H2v20Z"/></svg>
+                        Area Dimensions
+                    </h2>
+                    <div class="dim-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="field">
+                            <label for="area-length">Length (ft)</label>
+                            <input type="number" id="area-length" class="input-select" value="20" min="1" max="300">
+                        </div>
+                        <div class="field">
+                            <label for="area-width">Width (ft)</label>
+                            <input type="number" id="area-width" class="input-select" value="15" min="1" max="300">
+                        </div>
+                    </div>
+                    <div class="sqft-card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.02)); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: var(--radius-md); padding: 14px; display: flex; justify-content: space-between; align-items: center;">
+                        <span class="sqft-label" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Calculated Area</span>
+                        <span class="sqft-value" style="color: var(--color-primary); font-family: var(--font-heading); font-size: 16px; font-weight: 700;"><span id="area-sqft">300</span> sq ft</span>
+                    </div>
+                </div>
+
                 <!-- Section 3: Plant Composition -->
                 <div class="control-group">
                     <h2 class="section-title">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="4" cy="20" r="1"/></svg>
-                        Plant Composition
+                        Plant Composition & Season
                     </h2>
 
                     <div class="field">
@@ -131,6 +153,24 @@
                         <div class="slider-subtext">
                             <span>100% Annuals</span>
                             <span>100% Perennials</span>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="target-season">Target Season</label>
+                        <select id="target-season" class="input-select">
+                            <option value="spring">🌱 Spring (Pastels & Fresh Shoots)</option>
+                            <option value="summer" selected>☀️ Summer (Vibrant Full Blooms)</option>
+                            <option value="autumn">🍁 Autumn (Golden Gradients & Warm Colors)</option>
+                            <option value="winter">❄️ Winter (Evergreens & Structural Stems)</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>Seasonal Color Palette Focus</label>
+                        <div id="seasonal-palette-bar" class="palette-bar" style="display: flex; gap: 8px; margin-top: 4px;">
+                            <!-- Filled dynamically by JS -->
+                            <span class="color-dot" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.2);"></span>
                         </div>
                     </div>
                 </div>
