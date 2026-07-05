@@ -33,8 +33,9 @@ The application is completely self-contained, lightweight, and runs directly in 
 
 To run the application locally and bypass browser security/CORS restrictions (which can cause canvas-based AI generation and exports to fail):
 
-1. **Run the Python Launcher Script** (Recommended):
-   - Run `python run_app.py` in your terminal, or double-click the `run_app.py` file.
+1. **Run the Launcher** (Recommended):
+   - **On Windows**: Double-click the `run_app.bat` file.
+   - **On macOS/Linux/Windows Terminal**: Run `python run_app.py` in your terminal.
    - This automatically starts a local server on an available port (e.g. `http://localhost:8000`) and opens the application in your default browser.
 2. **Or use manual serving**:
    - Run `python -m http.server 8000` in this directory and open `http://localhost:8000` in your web browser.
