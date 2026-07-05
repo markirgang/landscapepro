@@ -31,9 +31,15 @@ The application is completely self-contained, lightweight, and runs directly in 
 
 ## Local Development & Running
 
-To run the application locally:
-1. Double-click the `index.html` file to open it in your web browser.
-2. Or use a local web server (like VS Code Live Server or python `python -m http.server`) to serve the project.
+To run the application locally and bypass browser security/CORS restrictions (which can cause canvas-based AI generation and exports to fail):
+
+1. **Run the Python Launcher Script** (Recommended):
+   - Run `python run_app.py` in your terminal, or double-click the `run_app.py` file.
+   - This automatically starts a local server on an available port (e.g. `http://localhost:8000`) and opens the application in your default browser.
+2. **Or use manual serving**:
+   - Run `python -m http.server 8000` in this directory and open `http://localhost:8000` in your web browser.
+3. **Avoid double-clicking `index.html` directly**:
+   - Opening the file as a `file://` protocol URL in your browser triggers strict security policies (Tainted Canvas), which prevents the AI overlay engine and exports from functioning properly.
 
 ---
 
