@@ -17,3 +17,18 @@ desktop.ini
 .agents/
 node_modules/
 dist/
+
+# Android packages
+*.apk
+
+# Credentials & secrets
+.env
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test outputs
+test_render_autumn.png
+

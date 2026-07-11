@@ -75,7 +75,7 @@ const sliderContainer = document.getElementById('slider-container');
 const afterLayer = document.getElementById('after-layer');
 const sliderHandle = document.getElementById('slider-handle');
 const imgBefore = document.getElementById('img-before');
-const imgAfter = document.getElementById('img-after');
+const afterCanvas = document.getElementById('after-canvas');
 
 const conceptTabs = document.querySelectorAll('.concept-tab');
 const conceptTitle = document.getElementById('concept-title');
@@ -507,7 +507,65 @@ function ensureHeic2Any() {
 // IMAGE FILE IMPORT HANDLER
 // -------------------------------------------------------------
 function initFileUploader() {
-    // Dropzone events
+    const dragOverlay = document.getElementById('drag-overlay');
+    let dragCounter = 0;
+
+    // Helper to handle dropping both files and links
+    async function handleDropEvent(e) {
+        e.preventDefault();
+        
+        // 1. Check for files
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleUploadedFiles(e.dataTransfer.files);
+            return;
+        }
+        
+        // 2. Check for links
+        let url = '';
+        const urlList = e.dataTransfer.getData('text/uri-list');
+        if (urlList) {
+            const urls = urlList.split(/\r?\n/).map(u => u.trim()).filter(u => u && !u.startsWith('#'));
+            if (urls.length > 0) {
+                url = urls[0];
+            }
+        }
+        
+        if (!url) {
+            const plainText = e.dataTransfer.getData('text/plain');
+            if (plainText && (plainText.startsWith('http://') || plainText.startsWith('https://'))) {
+                url = plainText.trim();
+            }
+        }
+        
+        // Check for HTML snippet (e.g. dragged image element)
+        if (!url) {
+            const htmlText = e.dataTransfer.getData('text/html');
+            if (htmlText) {
+                try {
+                    const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+                    const img = doc.querySelector('img');
+                    if (img && img.src) {
+                        url = img.src;
+                    } else {
+                        const link = doc.querySelector('a');
+                        if (link && link.href) {
+                            url = link.href;
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Failed to parse dragged HTML content:", err);
+                }
+            }
+        }
+        
+        if (url) {
+            handleLinkImport(url);
+        } else {
+            alert("No supported image files or links were detected in the dropped content.");
+        }
+    }
+
+    // Bind dropzone hover events (as fallback/direct drag-and-drop indicator)
     dropzone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropzone.classList.add('dragover');
@@ -520,9 +578,7 @@ function initFileUploader() {
     dropzone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropzone.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) {
-            handleUploadedFiles(e.dataTransfer.files);
-        }
+        handleDropEvent(e);
     });
 
     dropzone.addEventListener('click', () => {
@@ -534,6 +590,47 @@ function initFileUploader() {
             handleUploadedFiles(e.target.files);
         }
     });
+
+    // Premium full-screen drag and drop listeners
+    if (dragOverlay) {
+        window.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            if (dragCounter === 1) {
+                dragOverlay.classList.remove('hidden');
+                // Force layout reflow before adding active class for CSS transition
+                dragOverlay.offsetWidth; 
+                dragOverlay.classList.add('active');
+            }
+        });
+
+        window.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter <= 0) {
+                dragCounter = 0;
+                dragOverlay.classList.remove('active');
+                // Hide after transition ends to not block clicks
+                setTimeout(() => {
+                    if (!dragOverlay.classList.contains('active')) {
+                        dragOverlay.classList.add('hidden');
+                    }
+                }, 300);
+            }
+        });
+
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            dragOverlay.classList.remove('active');
+            dragOverlay.classList.add('hidden');
+            handleDropEvent(e);
+        });
+    }
 }
 
 async function handleUploadedFiles(files) {
@@ -542,12 +639,27 @@ async function handleUploadedFiles(files) {
     let lastImageId = null;
 
     for (const file of fileList) {
-        const isHeic = file.name.toLowerCase().endsWith('.heic') || 
-                       file.name.toLowerCase().endsWith('.heif') || 
+        const fileNameLower = file.name.toLowerCase();
+        const isImageExtension = fileNameLower.endsWith('.jpg') ||
+                                 fileNameLower.endsWith('.jpeg') ||
+                                 fileNameLower.endsWith('.png') ||
+                                 fileNameLower.endsWith('.webp') ||
+                                 fileNameLower.endsWith('.gif') ||
+                                 fileNameLower.endsWith('.heic') ||
+                                 fileNameLower.endsWith('.heif') ||
+                                 fileNameLower.endsWith('.tiff') ||
+                                 fileNameLower.endsWith('.tif') ||
+                                 fileNameLower.endsWith('.bmp') ||
+                                 fileNameLower.endsWith('.svg') ||
+                                 fileNameLower.endsWith('.jfif') ||
+                                 fileNameLower.endsWith('.ico');
+
+        const isHeic = fileNameLower.endsWith('.heic') || 
+                       fileNameLower.endsWith('.heif') || 
                        file.type === 'image/heic' || 
                        file.type === 'image/heif';
         
-        if (!isHeic && !file.type.startsWith('image/')) {
+        if (!isHeic && !file.type.startsWith('image/') && !isImageExtension) {
             processedCount++;
             continue;
         }
@@ -712,7 +824,21 @@ function initTabs() {
 function updateActiveVisualization() {
     const cache = state.conceptCache[state.activeImageId];
     if (cache && cache[state.activeConcept]) {
-        imgAfter.src = cache[state.activeConcept];
+        const source = cache[state.activeConcept];
+        const ctx = afterCanvas.getContext('2d');
+        if (typeof source === 'string') {
+            const img = new Image();
+            img.onload = () => {
+                afterCanvas.width = img.naturalWidth;
+                afterCanvas.height = img.naturalHeight;
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = source;
+        } else {
+            afterCanvas.width = source.naturalWidth || source.width;
+            afterCanvas.height = source.naturalHeight || source.height;
+            ctx.drawImage(source, 0, 0);
+        }
     }
     
     // Update descriptions
@@ -929,24 +1055,25 @@ function animateSliderEntrance() {
 function generateProceduralConcepts(baseImageSrc, soil, acidity, sun, water, ratio, theme, conceptIndex) {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.onload = () => {
+        img.onload = async () => {
             try {
-                const ctx = exportCanvas.getContext('2d');
-                
-                // Set canvas size matching the loaded image
-                exportCanvas.width = img.naturalWidth;
-                exportCanvas.height = img.naturalHeight;
+                if (typeof img.decode === 'function') {
+                    await img.decode();
+                }
+                const offscreenCanvas = document.createElement('canvas');
+                offscreenCanvas.width = img.naturalWidth;
+                offscreenCanvas.height = img.naturalHeight;
+                const ctx = offscreenCanvas.getContext('2d');
                 
                 // Draw original base space
                 ctx.drawImage(img, 0, 0);
                 
                 // Draw organic, customized plant overlays
-                drawPlantOverlay(ctx, exportCanvas.width, exportCanvas.height, soil, acidity, sun, water, ratio, theme, conceptIndex);
+                drawPlantOverlay(ctx, offscreenCanvas.width, offscreenCanvas.height, soil, acidity, sun, water, ratio, theme, conceptIndex);
                 
-                // Return generated concept data URI
-                resolve(exportCanvas.toDataURL('image/png'));
+                resolve(offscreenCanvas);
             } catch (err) {
-                console.warn("Canvas export failed (likely due to file:// protocol security restrictions):", err);
+                console.warn("Canvas drawing failed:", err);
                 reject(err);
             }
         };
@@ -1098,369 +1225,658 @@ function drawPlantOverlay(ctx, w, h, soil, acidity, sun, water, ratio, theme, co
 }
 
 // Plant drawers
+// Seeded random helper for internal plant drawing
+function createLocalRandom(seed) {
+    let s = seed;
+    return function() {
+        let x = Math.sin(s++) * 10000;
+        return x - Math.floor(x);
+    };
+}
+
+// Draw a single leaf with bezier curves and optional vein
+function drawLeaf(ctx, x, y, w, h, angle, color, veinColor) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(w / 2, -h / 3, 0, -h);
+    ctx.quadraticCurveTo(-w / 2, -h / 3, 0, 0);
+    ctx.closePath();
+    ctx.fill();
+    if (veinColor) {
+        ctx.strokeStyle = veinColor;
+        ctx.lineWidth = Math.max(0.5, w * 0.1);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -h * 0.8);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+// Draw a beautiful flower with multiple petals and radial shading
+function drawDetailedFlower(ctx, x, y, size, petalCount, color1, color2, centerColor, rVal) {
+    ctx.save();
+    ctx.translate(x, y);
+    
+    // Shadow for depth
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 1;
+    
+    // Draw petals
+    for (let i = 0; i < petalCount; i++) {
+        ctx.save();
+        ctx.rotate((i * Math.PI * 2) / petalCount + rVal);
+        
+        // Petal gradient
+        const petalGrad = ctx.createRadialGradient(0, 0, size * 0.1, 0, -size * 0.6, size * 0.8);
+        petalGrad.addColorStop(0, color2);
+        petalGrad.addColorStop(0.5, color1);
+        petalGrad.addColorStop(1, color2);
+        
+        ctx.fillStyle = petalGrad;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(size * 0.35, -size * 0.2, size * 0.25, -size, 0, -size);
+        ctx.bezierCurveTo(-size * 0.25, -size, -size * 0.35, -size * 0.2, 0, 0);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+    }
+    
+    // Flower center
+    ctx.shadowColor = 'transparent';
+    const centerGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.3);
+    centerGrad.addColorStop(0, '#fef08a'); // bright yellow
+    centerGrad.addColorStop(0.7, centerColor);
+    centerGrad.addColorStop(1, '#ca8a04'); // dark gold border
+    
+    ctx.fillStyle = centerGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Center pollen texture (little dots)
+    ctx.fillStyle = '#b45309';
+    for (let j = 0; j < 6; j++) {
+        const px = Math.sin(j) * (size * 0.15);
+        const py = Math.cos(j) * (size * 0.15);
+        ctx.beginPath();
+        ctx.arc(px, py, size * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    ctx.restore();
+}
+
+// Draw a beautiful textured foliage mound
+function drawLeafyMound(ctx, width, height, rVal, leafSize = 12) {
+    const colorsInfo = getSeasonalColors(state.activeTheme, state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const leafCount = 35;
+    const rand = createLocalRandom(rVal * 22);
+    
+    for (let i = 0; i < leafCount; i++) {
+        // Place leaves in a semi-elliptical mound
+        const angle = -Math.PI + rand() * Math.PI;
+        const rx = rand() * (width * 0.8) * Math.cos(angle);
+        const ry = -height * 0.2 - rand() * (height * 0.8) * Math.sin(angle);
+        const leafW = leafSize * (0.8 + rand() * 0.5);
+        const leafH = leafW * 1.5;
+        const leafAngle = angle + Math.PI / 2 + (rand() - 0.5) * 0.5;
+        const color = leaves[Math.floor(rand() * leaves.length)];
+        
+        drawLeaf(ctx, rx, ry, leafW, leafH, leafAngle, color, 'rgba(255,255,255,0.12)');
+    }
+}
+
 function drawCottagePlant(ctx, type, rVal, perennialRatio) {
     ctx.shadowColor = 'rgba(0,0,0,0.15)';
     ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
     
-    // Determine colors
-    // High perennial ratio -> Lavender, salvias, delphiniums (purples/blues)
-    // Low perennial ratio -> Petunias, marigolds (pinks, reds, yellows)
+    const colorsInfo = getSeasonalColors('cottage', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    
     const isPerennial = (rVal * 100) < perennialRatio;
     const acidity = aciditySelect.value;
     
-    let bloomColor1 = '#ec4899'; // pink
-    let bloomColor2 = '#f43f5e'; // red
+    let bloomColor1 = blooms[0] || '#ec4899';
+    let bloomColor2 = blooms[1] || '#f43f5e';
+    let centerColor = '#eab308'; // default yellow
     
+    // Apply acidity shifts if neutral or if theme needs specific adjustments
     if (acidity === 'acidic') {
-        // Acidic soil: shifts hydrangeas and cottage blooms to gorgeous blues and purples
         bloomColor1 = '#3b82f6'; // vibrant blue
         bloomColor2 = '#1d4ed8'; // deep blue
-        if (isPerennial && rVal > 0.5) {
-            bloomColor1 = '#8b5cf6'; // violet
-        }
     } else if (acidity === 'alkaline') {
-        // Alkaline soil: shifts cottage blooms to rich pinks, hot roses, and magentas
         bloomColor1 = '#f472b6'; // hot pink
         bloomColor2 = '#be185d'; // deep magenta
-        if (!isPerennial && rVal > 0.7) {
-            bloomColor1 = '#f43f5e'; // rose-red
-        }
-    } else {
-        // Neutral: default balanced cottage color palette
-        if (isPerennial) {
-            bloomColor1 = '#8b5cf6'; // violet
-            bloomColor2 = '#6366f1'; // indigo
-        } else if (rVal > 0.6) {
-            bloomColor1 = '#f59e0b'; // amber/orange
-            bloomColor2 = '#ef4444'; // red
-        }
     }
     
+    const rand = createLocalRandom(rVal * 45);
+    
     if (type === 'background') {
-        // Delphiniums or tall flowering spires
-        // Green stalks
-        ctx.strokeStyle = '#065f46';
-        ctx.lineWidth = 4;
+        // Delphiniums / Lupines spires
+        // Stalk with gradient
+        const stalkGrad = ctx.createLinearGradient(0, 0, 0, -90);
+        stalkGrad.addColorStop(0, leaves[leaves.length - 1] || '#065f46');
+        stalkGrad.addColorStop(1, leaves[0] || '#10b981');
+        ctx.strokeStyle = stalkGrad;
+        ctx.lineWidth = 4.5;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(0, -90);
+        ctx.lineTo(0, -95);
         ctx.stroke();
         
-        // Flower spike circles
-        ctx.fillStyle = bloomColor2;
-        for (let i = 0; i < 15; i++) {
-            const fy = -40 - (i * 3.5);
-            const fx = Math.sin(i) * 5;
+        // Flower spike circles/blossoms
+        for (let i = 0; i < 22; i++) {
+            const fy = -35 - (i * 2.8);
+            const fx = Math.sin(i * 1.5) * 6;
+            const bSize = 9 - (i * 0.28);
+            if (bSize < 2) continue;
+            
+            // Draw overlapping petals for each blossom
+            ctx.save();
+            ctx.translate(fx, fy);
+            ctx.fillStyle = i % 2 === 0 ? bloomColor2 : bloomColor1;
+            for (let p = 0; p < 4; p++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.beginPath();
+                ctx.ellipse(bSize * 0.4, 0, bSize * 0.6, bSize * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Center
+            ctx.fillStyle = '#fef08a';
             ctx.beginPath();
-            ctx.arc(fx, fy, 8 - (i * 0.3), 0, Math.PI * 2);
+            ctx.arc(0, 0, bSize * 0.2, 0, Math.PI * 2);
             ctx.fill();
-        }
-        // Inner blossoms
-        ctx.fillStyle = bloomColor1;
-        for (let i = 0; i < 15; i++) {
-            const fy = -40 - (i * 3.5);
-            const fx = Math.sin(i) * 5;
-            ctx.beginPath();
-            ctx.arc(fx + 2, fy, 4 - (i * 0.15), 0, Math.PI * 2);
-            ctx.fill();
+            ctx.restore();
         }
     } else if (type === 'midground') {
         // Lush flowering bush
-        // Green leaf mound
-        ctx.fillStyle = '#0f766e';
-        ctx.beginPath();
-        ctx.arc(0, -10, 25, 0, Math.PI * 2);
-        ctx.arc(-15, -20, 20, 0, Math.PI * 2);
-        ctx.arc(15, -20, 20, 0, Math.PI * 2);
-        ctx.fill();
+        drawLeafyMound(ctx, 35, 35, rVal, 10);
         
-        // Flowers
-        ctx.fillStyle = bloomColor1;
-        const flowerCount = 6 + Math.floor(rVal * 6);
+        // Detailed flowers
+        const flowerCount = 5 + Math.floor(rand() * 5);
         for (let i = 0; i < flowerCount; i++) {
-            const fx = -20 + (i * 7) + (Math.sin(i * 10) * 4);
-            const fy = -15 - (Math.abs(Math.cos(i * 5)) * 15);
-            ctx.beginPath();
-            ctx.arc(fx, fy, 6, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Flower center
-            ctx.fillStyle = '#fef08a'; // yellow center
-            ctx.beginPath();
-            ctx.arc(fx, fy, 2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = bloomColor1;
+            const fx = -22 + (i * 9) + (Math.sin(i * 10) * 3);
+            const fy = -12 - (Math.abs(Math.cos(i * 5)) * 18);
+            const fSize = 6.5 + rand() * 3.5;
+            drawDetailedFlower(ctx, fx, fy, fSize, 5, bloomColor1, bloomColor2, centerColor, rand() * Math.PI);
         }
     } else {
-        // Low border flowers (e.g. Lavender clumps or sweet alyssum)
-        ctx.fillStyle = '#10b981';
-        ctx.beginPath();
-        ctx.arc(0, -5, 12, 0, Math.PI * 2);
-        ctx.fill();
+        // Low border flowers (e.g. Lavender clumps or alyssum)
+        drawLeafyMound(ctx, 20, 20, rVal, 7);
         
-        ctx.fillStyle = bloomColor2;
-        for (let i = 0; i < 8; i++) {
-            const fx = Math.sin(i) * 12;
-            const fy = -5 - (rVal * 15) * Math.cos(i);
+        // Small flowers
+        const col = isPerennial ? bloomColor1 : bloomColor2;
+        ctx.fillStyle = col;
+        for (let i = 0; i < 10; i++) {
+            const fx = -12 + rand() * 24;
+            const fy = -4 - rand() * 14;
             ctx.beginPath();
-            ctx.arc(fx, fy, 3.5, 0, Math.PI * 2);
+            ctx.arc(fx, fy, 4, 0, Math.PI * 2);
             ctx.fill();
+            // Tiny yellow center
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(fx, fy, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = col;
         }
     }
 }
 
 function drawXeriscapePlant(ctx, type, rVal) {
     ctx.shadowColor = 'rgba(0,0,0,0.2)';
-    ctx.shadowBlur = 5;
-
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+    
+    const colorsInfo = getSeasonalColors('xeriscape', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 57);
+    
     if (type === 'background') {
         // Tall sculptural Yucca or Joshua tree structure
-        ctx.strokeStyle = '#5f370e'; // brown trunk
-        ctx.lineWidth = 6;
+        const trunkGrad = ctx.createLinearGradient(0, 0, 0, -60);
+        trunkGrad.addColorStop(0, '#3e2723'); // deep brown wood
+        trunkGrad.addColorStop(1, '#5d4037'); // lighter brown
+        ctx.strokeStyle = trunkGrad;
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(0, -50);
-        ctx.lineTo(-15, -75);
-        ctx.moveTo(0, -50);
-        ctx.lineTo(15, -70);
+        ctx.quadraticCurveTo(-5, -30, -5, -55);
+        ctx.moveTo(-5, -55);
+        ctx.quadraticCurveTo(-20, -65, -25, -80);
+        ctx.moveTo(-5, -55);
+        ctx.quadraticCurveTo(15, -60, 20, -75);
         ctx.stroke();
-
+        
         // Spiky heads
         const drawYuccaHead = (hx, hy) => {
             ctx.save();
             ctx.translate(hx, hy);
-            ctx.strokeStyle = '#166534';
-            ctx.lineWidth = 1.5;
-            for (let angle = 0; angle < Math.PI * 2; angle += 0.2) {
-                const len = 15 + rVal * 8;
+            
+            // Draw 24 tapered spiky blades
+            for (let angle = 0; angle < Math.PI * 2; angle += 0.26) {
+                const len = 20 + rand() * 10;
+                ctx.save();
+                ctx.rotate(angle);
+                
+                // Tapered blade
+                const bladeGrad = ctx.createLinearGradient(0, 0, 0, -len);
+                bladeGrad.addColorStop(0, leaves[leaves.length - 1] || '#166534');
+                bladeGrad.addColorStop(1, leaves[0] || '#4ade80');
+                
+                ctx.fillStyle = bladeGrad;
+                ctx.beginPath();
+                ctx.moveTo(-2.5, 0);
+                ctx.lineTo(2.5, 0);
+                ctx.lineTo(0, -len);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Highlight line
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.lineWidth = 0.8;
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                ctx.lineTo(Math.cos(angle) * len, Math.sin(angle) * len);
+                ctx.lineTo(0, -len * 0.9);
                 ctx.stroke();
+                
+                ctx.restore();
             }
             ctx.restore();
         };
-
-        drawYuccaHead(-15, -75);
-        drawYuccaHead(15, -70);
-        drawYuccaHead(0, -50);
+        
+        drawYuccaHead(-25, -80);
+        drawYuccaHead(20, -75);
+        drawYuccaHead(-5, -55);
         
     } else if (type === 'midground') {
-        // Agave or Aloe structure
-        ctx.fillStyle = '#065f46';
-        ctx.strokeStyle = '#047857';
-        ctx.lineWidth = 2;
-        
-        // Draw leaves radiating outward
-        for (let i = 0; i < 12; i++) {
+        // Agave
+        ctx.save();
+        // Radiating tapered leaves
+        for (let i = 0; i < 14; i++) {
             ctx.save();
-            const angle = -Math.PI + (i * Math.PI) / 11;
+            const angle = -Math.PI * 0.95 + (i * Math.PI * 0.9) / 13;
             ctx.rotate(angle);
             
+            const len = 35 + rand() * 15;
+            const w = 7 + rand() * 4;
+            
+            const leafGrad = ctx.createLinearGradient(0, 0, 0, -len);
+            leafGrad.addColorStop(0, leaves[leaves.length - 1] || '#0f5132');
+            leafGrad.addColorStop(0.7, leaves[0] || '#34d399');
+            leafGrad.addColorStop(1, '#f97316'); // orange tip
+            
+            ctx.fillStyle = leafGrad;
+            ctx.beginPath();
+            ctx.moveTo(-w, 0);
+            ctx.quadraticCurveTo(-w * 0.7, -len * 0.4, 0, -len);
+            ctx.quadraticCurveTo(w * 0.7, -len * 0.4, w, 0);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Central ridge highlight
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(8, -12, 0, -35 - (rVal * 15));
-            ctx.quadraticCurveTo(-8, -12, 0, 0);
-            ctx.fill();
+            ctx.lineTo(0, -len * 0.9);
             ctx.stroke();
+            
             ctx.restore();
         }
+        ctx.restore();
     } else {
-        // Small succulents or round desert cacti (e.g. Golden Barrel Cactus)
-        const rad = 14 + rVal * 8;
-        ctx.fillStyle = '#15803d';
-        ctx.strokeStyle = '#f59e0b'; // golden spikes
-        ctx.lineWidth = 1.5;
+        // Golden Barrel Cactus
+        const rad = 15 + rand() * 8;
+        ctx.save();
+        ctx.translate(0, -rad);
+        
+        // Body with radial gradient
+        const bodyGrad = ctx.createRadialGradient(-rad * 0.2, -rad * 0.3, 0, 0, 0, rad);
+        bodyGrad.addColorStop(0, '#86efac'); // bright lime green highlight
+        bodyGrad.addColorStop(0.7, leaves[0] || '#15803d');
+        bodyGrad.addColorStop(1, leaves[leaves.length - 1] || '#064e3b');
+        ctx.fillStyle = bodyGrad;
         
         ctx.beginPath();
-        ctx.arc(0, -rad, rad, 0, Math.PI * 2);
+        ctx.arc(0, 0, rad, 0, Math.PI * 2);
         ctx.fill();
         
-        // draw yellow spines around the cactus border
-        for (let angle = 0; angle < Math.PI * 2; angle += 0.3) {
+        // Ribs (vertical 3D shading)
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1.5;
+        for (let r = -3; r <= 3; r++) {
+            if (r === 0) continue;
             ctx.beginPath();
-            ctx.moveTo(Math.cos(angle) * rad, -rad + Math.sin(angle) * rad);
-            ctx.lineTo(Math.cos(angle) * (rad + 4), -rad + Math.sin(angle) * (rad + 4));
+            ctx.ellipse(0, 0, rad * Math.abs(r/4), rad, 0, -Math.PI / 2, Math.PI / 2);
             ctx.stroke();
         }
+        
+        // Spines
+        ctx.strokeStyle = '#f59e0b'; // golden spines
+        ctx.lineWidth = 1.2;
+        for (let angle = 0; angle < Math.PI * 2; angle += 0.28) {
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(angle) * rad, Math.sin(angle) * rad);
+            ctx.lineTo(Math.cos(angle) * (rad + 5), Math.sin(angle) * (rad + 5));
+            ctx.stroke();
+        }
+        
+        // Cactus flower on top
+        if (rand() > 0.4) {
+            const fColor = blooms[0] || '#f43f5e';
+            ctx.fillStyle = fColor;
+            for (let f = 0; f < 5; f++) {
+                ctx.beginPath();
+                ctx.ellipse(0, -rad, 4, 8, (f - 2) * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(0, -rad, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        ctx.restore();
     }
 }
 
 function drawZenPlant(ctx, type, rVal) {
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    
+    const colorsInfo = getSeasonalColors('zen', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 89);
+    
     if (type === 'background') {
         // Small weeping Japanese Maple tree
-        ctx.strokeStyle = '#292524'; // grey-brown trunk
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#292524'; // dark grey-brown trunk
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(0, 0);
         // Curved trunk
-        ctx.quadraticCurveTo(-15, -40, 5, -80);
+        ctx.quadraticCurveTo(-15, -35, 5, -75);
         ctx.stroke();
-
-        // Branches and leaves
-        ctx.lineWidth = 2;
+        
+        // Main branches
+        ctx.lineWidth = 2.8;
         ctx.beginPath();
-        ctx.moveTo(5, -80);
-        ctx.quadraticCurveTo(-20, -90, -35, -70); // branch 1
-        ctx.moveTo(5, -80);
-        ctx.quadraticCurveTo(30, -90, 40, -75); // branch 2
+        ctx.moveTo(5, -75);
+        ctx.quadraticCurveTo(-20, -85, -35, -65); // branch left
+        ctx.moveTo(5, -75);
+        ctx.quadraticCurveTo(25, -82, 35, -60); // branch right
         ctx.stroke();
-
-        // Crimson foliage (red maple)
+        
+        // Maple foliage clusters (made of small maple-like leaves)
         const drawMapleFoliage = (fx, fy, scale) => {
-            ctx.fillStyle = 'rgba(153, 27, 27, 0.9)'; // crimson red
-            for (let i = 0; i < 8; i++) {
-                const ox = Math.sin(i) * 18 * scale;
-                const oy = Math.cos(i) * 12 * scale;
-                ctx.beginPath();
-                ctx.arc(fx + ox, fy + oy, 12 * scale, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        };
-
-        drawMapleFoliage(5, -80, 1.0);
-        drawMapleFoliage(-35, -70, 0.8);
-        drawMapleFoliage(40, -75, 0.8);
-        
-    } else if (type === 'midground') {
-        // Bamboo stalks or tall Zen reeds
-        ctx.strokeStyle = '#14532d';
-        ctx.lineWidth = 3;
-        
-        const count = 3 + Math.floor(rVal * 3);
-        for (let b = 0; b < count; b++) {
-            const bx = -15 + b * 12;
-            const length = 70 + rVal * 30;
+            const leafColor = blooms[Math.floor(rand() * blooms.length)] || '#991b1b';
+            ctx.save();
+            ctx.translate(fx, fy);
             
-            ctx.beginPath();
-            ctx.moveTo(bx, 0);
-            ctx.lineTo(bx - (b * 2), -length);
-            ctx.stroke();
-            
-            // Draw small side leaves
-            ctx.fillStyle = '#166534';
-            for (let l = 0; l < 5; l++) {
-                const ly = -10 - (l * 12);
+            // Draw a dense cluster of small overlapping ellipses in maple shapes
+            for (let i = 0; i < 20; i++) {
+                const angle = rand() * Math.PI * 2;
+                const dist = 14 * scale * rand();
+                const lx = Math.cos(angle) * dist;
+                const ly = Math.sin(angle) * dist;
+                
+                // Drawing three-pointed maple leaf shape
+                ctx.fillStyle = leafColor;
                 ctx.save();
-                ctx.translate(bx - (b * 2 * (ly/-length)), ly);
-                ctx.rotate(0.5 - (l % 2));
+                ctx.translate(lx, ly);
+                ctx.rotate(angle);
+                
+                const w = 6 * scale;
+                const h = 9 * scale;
                 ctx.beginPath();
-                ctx.ellipse(0, 0, 8, 2, 0, 0, Math.PI * 2);
+                ctx.ellipse(0, 0, w, h, 0, 0, Math.PI * 2);
+                ctx.ellipse(w * 0.7, -h * 0.4, w * 0.7, h * 0.7, 0.5, 0, Math.PI * 2);
+                ctx.ellipse(-w * 0.7, -h * 0.4, w * 0.7, h * 0.7, -0.5, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.restore();
             }
-        }
-    } else {
-        // Ferns or Shade Hostas
-        ctx.fillStyle = '#065f46';
+            ctx.restore();
+        };
         
-        // Broad leafy heart-shaped leaves for Hosta
-        for (let i = 0; i < 10; i++) {
-            ctx.save();
-            const angle = -Math.PI * 0.9 + (i * Math.PI * 0.8) / 9;
-            ctx.rotate(angle);
+        drawMapleFoliage(5, -75, 1.2);
+        drawMapleFoliage(-35, -65, 0.95);
+        drawMapleFoliage(35, -60, 0.95);
+        
+    } else if (type === 'midground') {
+        // Bamboo stalks with joint segments and lanceolate leaves
+        const count = 3 + Math.floor(rand() * 3);
+        for (let b = 0; b < count; b++) {
+            const bx = -18 + b * 14;
+            const length = 75 + rand() * 25;
             
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(12, -8, 0, -22);
-            ctx.quadraticCurveTo(-12, -8, 0, 0);
-            ctx.fill();
+            // Segmented stalk
+            ctx.save();
+            ctx.translate(bx, 0);
+            const stalkColorBase = leaves[leaves.length - 1] || '#14532d';
+            const stalkColorLight = leaves[0] || '#4ade80';
+            
+            const stalkGrad = ctx.createLinearGradient(-2, 0, 2, 0);
+            stalkGrad.addColorStop(0, stalkColorBase);
+            stalkGrad.addColorStop(0.5, stalkColorLight);
+            stalkGrad.addColorStop(1, stalkColorBase);
+            ctx.fillStyle = stalkGrad;
+            
+            // Draw stalks in 4 segments
+            const segments = 4;
+            const segH = length / segments;
+            for (let s = 0; s < segments; s++) {
+                const sy = -s * segH;
+                const nextSy = -(s + 1) * segH;
+                
+                ctx.beginPath();
+                ctx.moveTo(-2.5, sy);
+                ctx.lineTo(2.5, sy);
+                ctx.lineTo(2.2, nextSy + 1);
+                ctx.lineTo(-2.2, nextSy + 1);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Bamboo joint (annulus rings)
+                ctx.fillStyle = '#facc15'; // yellowish joint
+                ctx.fillRect(-3, nextSy, 6, 1.5);
+                ctx.fillStyle = stalkGrad; // restore
+                
+                // Side leaves off joints
+                if (s > 0) {
+                    ctx.save();
+                    ctx.translate(0, nextSy);
+                    const leafSide = (s + b) % 2 === 0 ? 1 : -1;
+                    ctx.rotate(leafSide * (0.4 + rand() * 0.4));
+                    
+                    // Draw 2 leaves
+                    for (let l = 0; l < 2; l++) {
+                        ctx.save();
+                        ctx.rotate((l - 0.5) * 0.3);
+                        const leafGrad = ctx.createLinearGradient(0, 0, 0, -18);
+                        leafGrad.addColorStop(0, leaves[0] || '#166534');
+                        leafGrad.addColorStop(1, leaves[Math.min(1, leaves.length - 1)] || '#15803d');
+                        drawLeaf(ctx, 0, 0, 3.5, 18, 0, leafGrad, 'rgba(255,255,255,0.1)');
+                        ctx.restore();
+                    }
+                    ctx.restore();
+                }
+            }
             ctx.restore();
         }
-        
-        // Hostas have yellow outline edges in partial shade
-        ctx.strokeStyle = '#84cc16';
-        ctx.lineWidth = 0.8;
-        for (let i = 0; i < 10; i++) {
+    } else {
+        // Ferns / Shade Hostas
+        // Let's render broad variegated hostas
+        for (let i = 0; i < 11; i++) {
             ctx.save();
-            const angle = -Math.PI * 0.9 + (i * Math.PI * 0.8) / 9;
+            const angle = -Math.PI * 0.95 + (i * Math.PI * 0.9) / 10;
             ctx.rotate(angle);
+            
+            const len = 20 + rand() * 10;
+            const w = 8 + rand() * 4;
+            
+            // Variegated margin effect: draw a slightly larger white/lime background leaf first
+            ctx.fillStyle = '#a3e635'; // lime green edge
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(12, -8, 0, -22);
-            ctx.quadraticCurveTo(-12, -8, 0, 0);
+            ctx.quadraticCurveTo(w + 1, -len * 0.4, 0, -len - 1);
+            ctx.quadraticCurveTo(-w - 1, -len * 0.4, 0, 0);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Inside dark green leaf
+            const innerGrad = ctx.createLinearGradient(0, 0, 0, -len);
+            innerGrad.addColorStop(0, leaves[leaves.length - 1] || '#064e3b');
+            innerGrad.addColorStop(1, leaves[0] || '#15803d');
+            
+            ctx.fillStyle = innerGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(w - 0.8, -len * 0.4, 0, -len);
+            ctx.quadraticCurveTo(-w - 0.8, -len * 0.4, 0, 0);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Veins (radiating curves)
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 0.6;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -len * 0.95);
             ctx.stroke();
+            
             ctx.restore();
         }
     }
 }
 
 function drawMeadowPlant(ctx, type, rVal, perennialRatio) {
-    // Soft wildflower meadow look: wispy grasses and scattered dots of bright red, yellow, and blue blooms
+    ctx.shadowColor = 'rgba(0,0,0,0.1)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 1;
     
-    // 1. Draw thin wispy grasses
-    ctx.strokeStyle = '#065f46';
-    ctx.lineWidth = 1.2;
-    const grassCount = 12 + Math.floor(rVal * 10);
+    const colorsInfo = getSeasonalColors('meadow', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 111);
+    
+    // 1. Draw thin wispy grass blades using tapered curves
+    const grassCount = 14 + Math.floor(rand() * 12);
     for (let g = 0; g < grassCount; g++) {
-        const angle = -0.3 + (g * 0.6) / grassCount;
-        const length = 40 + rVal * 30;
+        ctx.save();
+        const startX = -12 + g * 2.2;
+        const length = 45 + rand() * 35;
+        const angle = -0.3 + (g * 0.6) / grassCount + (rand() - 0.5) * 0.15;
         
+        ctx.translate(startX, 0);
+        ctx.rotate(angle);
+        
+        const grassGrad = ctx.createLinearGradient(0, 0, 0, -length);
+        grassGrad.addColorStop(0, leaves[leaves.length - 1] || '#065f46');
+        grassGrad.addColorStop(0.6, leaves[0] || '#15803d');
+        grassGrad.addColorStop(1, '#eab308'); // gold tips for meadow look
+        
+        ctx.fillStyle = grassGrad;
         ctx.beginPath();
-        ctx.moveTo(-10 + g * 2, 0);
-        ctx.quadraticCurveTo(-10 + g * 2 + Math.sin(g) * 5, -length * 0.5, -10 + g * 2 + angle * 25, -length);
-        ctx.stroke();
+        ctx.moveTo(-1.2, 0);
+        ctx.quadraticCurveTo(1.5, -length * 0.5, 0, -length);
+        ctx.quadraticCurveTo(-1.5, -length * 0.5, 1.2, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
     }
-
+    
     // 2. Draw colorful wildflower heads
-    // Ratio controls color balance: High perennials -> blue cornflowers; low -> red poppies
     const isPerennial = (rVal * 100) < perennialRatio;
-    let bloomColor = '#ef4444'; // Red poppy
-    if (isPerennial) {
-        bloomColor = '#3b82f6'; // Blue cornflower
-    } else if (rVal > 0.7) {
-        bloomColor = '#eab308'; // Yellow daisy
-    }
-
-    ctx.fillStyle = bloomColor;
-    const flowerCount = 3 + Math.floor(rVal * 5);
+    let bloomColor1 = blooms[0] || '#ef4444'; // default red poppy
+    let bloomColor2 = blooms[1] || '#3b82f6'; // default blue cornflower
+    let centerColor = '#111827'; // dark eye for poppy
+    
+    const flowerCount = 3 + Math.floor(rand() * 5);
     for (let f = 0; f < flowerCount; f++) {
-        const fx = -12 + (f * 6) + (Math.sin(f) * 4);
-        const fy = -25 - (f * 8);
+        const fx = -12 + (f * 6.5) + (rand() - 0.5) * 6;
+        const fy = -25 - (f * 9) - rand() * 10;
+        const fSize = 5 + rand() * 3.5;
+        const fColor = (isPerennial && f % 2 === 0) ? bloomColor2 : (f % 3 === 0 ? '#eab308' : bloomColor1);
         
-        // Flower petals
-        ctx.beginPath();
-        ctx.arc(fx, fy, 4, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.save();
+        ctx.translate(fx, fy);
         
-        // Flower center
-        ctx.fillStyle = '#111827'; // black eye
+        // Petals
+        ctx.fillStyle = fColor;
+        for (let p = 0; p < 5; p++) {
+            ctx.rotate((Math.PI * 2) / 5);
+            ctx.beginPath();
+            ctx.ellipse(fSize * 0.5, 0, fSize * 0.7, fSize * 0.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Dark center
+        ctx.fillStyle = fColor === '#eab308' ? '#b45309' : centerColor;
         ctx.beginPath();
-        ctx.arc(fx, fy, 1.2, 0, Math.PI * 2);
+        ctx.arc(0, 0, fSize * 0.22, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = bloomColor; // restore
+        ctx.restore();
     }
 }
 
 function drawZenStones(ctx, w, h) {
     // Draw some flat grey stepping stones in the foreground
-    const ctxC = exportCanvas.getContext('2d');
-    ctxC.fillStyle = '#4b5563';
-    ctxC.strokeStyle = '#374151';
-    ctxC.lineWidth = 2;
+    ctx.shadowColor = 'rgba(0,0,0,0.25)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
 
     const stones = [
-        { x: w * 0.25, y: h * 0.85, rx: 35, ry: 12 },
-        { x: w * 0.45, y: h * 0.78, rx: 28, ry: 9 },
-        { x: w * 0.65, y: h * 0.88, rx: 42, ry: 15 }
+        { x: w * 0.25, y: h * 0.85, rx: 35, ry: 12, angle: 0.08 },
+        { x: w * 0.45, y: h * 0.78, rx: 28, ry: 9, angle: -0.05 },
+        { x: w * 0.65, y: h * 0.88, rx: 42, ry: 15, angle: 0.12 }
     ];
 
     stones.forEach(stone => {
-        ctxC.save();
-        ctxC.translate(stone.x, stone.y);
-        ctxC.beginPath();
-        ctxC.ellipse(0, 0, stone.rx, stone.ry, 0.1, 0, Math.PI * 2);
-        ctxC.fill();
-        ctxC.stroke();
+        ctx.save();
+        ctx.translate(stone.x, stone.y);
+        ctx.rotate(stone.angle);
+        
+        // Linear gradient for slate texture
+        const stoneGrad = ctx.createLinearGradient(-stone.rx, -stone.ry, stone.rx, stone.ry);
+        stoneGrad.addColorStop(0, '#6b7280'); // lighter grey
+        stoneGrad.addColorStop(0.7, '#4b5563'); // medium grey
+        stoneGrad.addColorStop(1, '#374151'); // dark slate edge
+        
+        ctx.fillStyle = stoneGrad;
+        ctx.strokeStyle = '#1f2937';
+        ctx.lineWidth = 2.2;
+        
+        ctx.beginPath();
+        ctx.ellipse(0, 0, stone.rx, stone.ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
         
         // Stone texture highlights
-        ctxC.strokeStyle = 'rgba(255,255,255,0.15)';
-        ctxC.lineWidth = 1;
-        ctxC.beginPath();
-        ctxC.ellipse(-3, -2, stone.rx - 5, stone.ry - 3, 0.1, 0, Math.PI);
-        ctxC.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(-3, -2, stone.rx - 5, stone.ry - 3, 0, Math.PI * 1.05, Math.PI * 1.95);
+        ctx.stroke();
         
-        ctxC.restore();
+        ctx.restore();
     });
 }
 
@@ -1471,14 +1887,20 @@ function initExportActions() {
     // Individual active concept export
     btnExportSingle.addEventListener('click', () => {
         const format = selectFormatSingle.value;
-        const activeSrc = imgAfter.src;
-        
-        if (!activeSrc || activeSrc.includes('template_bare')) {
-            alert('Please generate AI designs first before exporting!');
-            return;
+        try {
+            // Draw current state to a temp canvas to convert format and get data URI
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = afterCanvas.width;
+            tempCanvas.height = afterCanvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(afterCanvas, 0, 0);
+            const activeSrc = tempCanvas.toDataURL(format === 'png' ? 'image/png' : 'image/jpeg');
+            
+            downloadImage(activeSrc, `LandscapePro_Design_${state.activeTheme}_${state.activeConcept}.${format}`, format);
+        } catch (err) {
+            console.error(err);
+            alert('Export failed due to browser security restrictions on local files. To export, please run the app via a local web server (using run_app.bat).');
         }
-        
-        downloadImage(activeSrc, `LandscapePro_Design_${state.activeTheme}_${state.activeConcept}.${format}`, format);
     });
 
     // Mass export of all three concepts
@@ -1495,8 +1917,26 @@ function initExportActions() {
         const concepts = ['concept-1', 'concept-2', 'concept-3'];
         concepts.forEach((concept, index) => {
             setTimeout(() => {
-                const src = cache[concept];
-                downloadImage(src, `LandscapePro_${state.activeTheme}_Concept_${index + 1}.${format}`, format);
+                const source = cache[concept];
+                try {
+                    let dataUrl;
+                    if (typeof source === 'string') {
+                        dataUrl = source;
+                    } else {
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = source.naturalWidth || source.width;
+                        tempCanvas.height = source.naturalHeight || source.height;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        tempCtx.drawImage(source, 0, 0);
+                        dataUrl = tempCanvas.toDataURL(format === 'png' ? 'image/png' : 'image/jpeg');
+                    }
+                    downloadImage(dataUrl, `LandscapePro_${state.activeTheme}_Concept_${index + 1}.${format}`, format);
+                } catch (err) {
+                    console.error(err);
+                    if (index === 0) {
+                        alert('Export failed due to browser security restrictions on local files. To export, please run the app via a local web server (using run_app.bat).');
+                    }
+                }
             }, index * 400); // 400ms interval so the browser registers separate file downloads smoothly
         });
     });
@@ -1553,249 +1993,425 @@ function triggerDownload(url, filename) {
 // -------------------------------------------------------------
 
 function drawMediterraneanPlant(ctx, type, rVal) {
-    ctx.shadowColor = 'rgba(0,0,0,0.1)';
-    ctx.shadowBlur = 4;
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    
+    const colorsInfo = getSeasonalColors('mediterranean', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 32);
     
     if (type === 'background') {
         // Olive tree (dusty green leaves, slender branches)
-        ctx.strokeStyle = '#3e2723';
-        ctx.lineWidth = 3.5;
+        const trunkGrad = ctx.createLinearGradient(0, 0, 0, -60);
+        trunkGrad.addColorStop(0, '#3e2723'); // deep gnarled brown
+        trunkGrad.addColorStop(1, '#5d4037');
+        ctx.strokeStyle = trunkGrad;
+        ctx.lineWidth = 4.5;
+        ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.quadraticCurveTo(-10, -35, 0, -65);
+        ctx.quadraticCurveTo(-12, -35, 0, -65);
         ctx.stroke();
         
         ctx.strokeStyle = '#4e342e';
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
         ctx.moveTo(0, -65);
-        ctx.quadraticCurveTo(-20, -75, -25, -60);
+        ctx.quadraticCurveTo(-22, -75, -28, -60);
         ctx.moveTo(0, -65);
-        ctx.quadraticCurveTo(20, -75, 25, -55);
+        ctx.quadraticCurveTo(22, -75, 28, -55);
         ctx.stroke();
         
-        // Dusty grey-green foliage
+        // Dusty grey-green foliage clusters
         const drawOliveLeaves = (lx, ly) => {
-            ctx.fillStyle = 'rgba(107, 114, 92, 0.85)';
-            for (let i = 0; i < 6; i++) {
-                ctx.beginPath();
-                ctx.arc(lx + Math.sin(i)*10, ly + Math.cos(i)*6, 8, 0, Math.PI*2);
-                ctx.fill();
+            ctx.save();
+            ctx.translate(lx, ly);
+            for (let i = 0; i < 15; i++) {
+                const angle = rand() * Math.PI * 2;
+                const dist = 12 * rand();
+                const lcolor = leaves[Math.floor(rand() * leaves.length)] || '#6b725c';
+                
+                // Draw silvery olive leaf
+                drawLeaf(ctx, Math.cos(angle)*dist, Math.sin(angle)*dist, 4.5, 12, angle, lcolor, 'rgba(255,255,255,0.15)');
             }
+            ctx.restore();
         };
-        drawOliveLeaves(-25, -60);
-        drawOliveLeaves(25, -55);
+        drawOliveLeaves(-28, -60);
+        drawOliveLeaves(28, -55);
         drawOliveLeaves(0, -65);
     } else if (type === 'midground') {
         // Lavender / Salvia clumps (grey-green base, purple flowering spikes)
-        ctx.fillStyle = '#4b5320'; // olive green foliage
-        ctx.beginPath();
-        ctx.arc(0, -8, 16, 0, Math.PI*2);
-        ctx.fill();
+        // Foliage mound first
+        drawLeafyMound(ctx, 22, 22, rVal, 8);
         
         // Purple spikes
-        ctx.fillStyle = '#8b5cf6';
-        for (let i = 0; i < 8; i++) {
-            const h = 25 + rVal * 15;
-            const angle = -0.5 + (i * 1.0) / 7;
+        const spikeColor = blooms[0] || '#8b5cf6';
+        const spikeHighlight = blooms[Math.min(1, blooms.length - 1)] || '#a78bfa';
+        
+        ctx.fillStyle = spikeColor;
+        for (let i = 0; i < 9; i++) {
+            const h = 26 + rand() * 14;
+            const angle = -0.55 + (i * 1.1) / 8;
             ctx.save();
             ctx.rotate(angle);
-            ctx.fillRect(-2, -h, 4, h - 8);
-            // Flower dots
-            ctx.fillStyle = '#a78bfa';
+            
+            // Thin stem
+            ctx.strokeStyle = leaves[0] || '#4b5320';
+            ctx.lineWidth = 1.8;
             ctx.beginPath();
-            ctx.arc(0, -h, 3.5, 0, Math.PI*2);
-            ctx.arc(0, -h + 5, 3, 0, Math.PI*2);
-            ctx.fill();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -h);
+            ctx.stroke();
+            
+            // Flower dots arranged along the top half
+            ctx.fillStyle = spikeColor;
+            for (let f = 0; f < 5; f++) {
+                const fy = -h * 0.4 - (f * h * 0.12);
+                ctx.beginPath();
+                ctx.arc(0, fy, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = spikeHighlight;
+                ctx.beginPath();
+                ctx.arc(1.2, fy - 1, 1.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = spikeColor;
+            }
             ctx.restore();
-            ctx.fillStyle = '#8b5cf6'; // restore
         }
     } else {
         // Terracotta pot with red geraniums
-        ctx.fillStyle = '#c2410c'; // Terracotta orange
+        // 1. Terracotta clay pot
+        const potGrad = ctx.createLinearGradient(-12, 0, 12, 12);
+        potGrad.addColorStop(0, '#c2410c'); // warm terracotta
+        potGrad.addColorStop(0.5, '#ea580c'); // light highlight
+        potGrad.addColorStop(1, '#9a3412'); // shadow edge
+        
+        ctx.fillStyle = potGrad;
+        ctx.strokeStyle = '#7c2d12';
+        ctx.lineWidth = 1.5;
+        
         ctx.beginPath();
-        ctx.moveTo(-10, 0);
-        ctx.lineTo(10, 0);
-        ctx.lineTo(7, 12);
-        ctx.lineTo(-7, 12);
+        ctx.moveTo(-11, 0);
+        ctx.lineTo(11, 0);
+        ctx.lineTo(8, 14);
+        ctx.lineTo(-8, 14);
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
         
-        // Green leaves inside pot
-        ctx.fillStyle = '#15803d';
-        ctx.beginPath();
-        ctx.arc(0, -3, 9, 0, Math.PI*2);
-        ctx.fill();
+        // Rim of pot
+        ctx.fillStyle = '#ea580c';
+        ctx.fillRect(-13, -3, 26, 3);
+        ctx.strokeRect(-13, -3, 26, 3);
         
-        // Red geranium dots
-        ctx.fillStyle = '#ef4444';
-        for (let i = 0; i < 5; i++) {
+        // 2. Scalloped dark green leaves inside pot
+        ctx.fillStyle = leaves[0] || '#15803d';
+        for (let i = 0; i < 8; i++) {
+            const lx = -7 + rand() * 14;
+            const ly = -4 - rand() * 5;
             ctx.beginPath();
-            ctx.arc(-6 + i*3, -4 - (Math.sin(i)*2), 3, 0, Math.PI*2);
+            ctx.arc(lx, ly, 7, 0, Math.PI * 2);
             ctx.fill();
+            // Lighter edge
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.arc(lx, ly, 7, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        // 3. Bright geranium blooms
+        const gColor = blooms[0] || '#ef4444';
+        ctx.fillStyle = gColor;
+        for (let i = 0; i < 6; i++) {
+            const gx = -8 + rand() * 16;
+            const gy = -7 - rand() * 8;
+            // Draw a cluster of tiny dots for each geranium head
+            ctx.beginPath();
+            ctx.arc(gx, gy, 3.5, 0, Math.PI * 2);
+            ctx.arc(gx - 2, gy - 2, 2.5, 0, Math.PI * 2);
+            ctx.arc(gx + 2, gy - 1, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Tiny yellow dot in center
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(gx, gy, 1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = gColor;
         }
     }
 }
 
 function drawRainGardenPlant(ctx, type, rVal) {
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    
+    const colorsInfo = getSeasonalColors('rain-garden', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 95);
+    
     if (type === 'background') {
-        // Tall river rushes / reeds
-        ctx.strokeStyle = '#0f5132';
-        ctx.lineWidth = 2.5;
-        const rushCount = 4 + Math.floor(rVal * 3);
+        // Tall river rushes / reeds with cattail seed heads
+        const rushCount = 5 + Math.floor(rand() * 4);
         for (let i = 0; i < rushCount; i++) {
-            const rx = -12 + i * 8;
-            const len = 65 + rVal * 25;
+            const rx = -15 + i * 8;
+            const len = 70 + rand() * 25;
+            
+            // Curved rush leaf
+            const rushGrad = ctx.createLinearGradient(rx, 0, rx - 6, -len);
+            rushGrad.addColorStop(0, leaves[leaves.length - 1] || '#0f5132');
+            rushGrad.addColorStop(1, leaves[0] || '#22c55e');
+            
+            ctx.strokeStyle = rushGrad;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(rx, 0);
-            ctx.quadraticCurveTo(rx + Math.sin(i)*6, -len*0.5, rx - 5, -len);
+            ctx.quadraticCurveTo(rx + Math.sin(i) * 8, -len * 0.5, rx - 6, -len);
             ctx.stroke();
             
-            // Brown seed head
-            ctx.fillStyle = '#422006';
-            ctx.beginPath();
-            ctx.ellipse(rx - 5, -len, 3, 8, 0.1, 0, Math.PI * 2);
-            ctx.fill();
+            // Brown cattail head on some rushes
+            if (i % 2 === 0) {
+                ctx.save();
+                ctx.translate(rx - 4, -len * 0.85);
+                
+                const seedGrad = ctx.createLinearGradient(-2, 0, 2, 0);
+                seedGrad.addColorStop(0, '#451a03'); // dark brown
+                seedGrad.addColorStop(0.5, '#78350f'); // lighter highlight
+                seedGrad.addColorStop(1, '#451a03');
+                
+                ctx.fillStyle = seedGrad;
+                ctx.beginPath();
+                ctx.roundRect(-2.5, -16, 5, 16, [2.5, 2.5, 2.5, 2.5]);
+                ctx.fill();
+                
+                // Tiny tip needle
+                ctx.strokeStyle = '#78350f';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, -16);
+                ctx.lineTo(0, -21);
+                ctx.stroke();
+                ctx.restore();
+            }
         }
     } else if (type === 'midground') {
         // Wet Ferns (lush green pinnate leaves)
-        ctx.fillStyle = '#198754';
-        for (let f = 0; f < 8; f++) {
+        for (let f = 0; f < 9; f++) {
             ctx.save();
-            const angle = -0.9 + (f * 1.8) / 7;
+            const angle = -0.95 + (f * 1.9) / 8 + (rand() - 0.5) * 0.15;
             ctx.rotate(angle);
             
+            const len = 30 + rand() * 15;
+            // Draw central stem
+            ctx.strokeStyle = leaves[leaves.length - 1] || '#146c43';
+            ctx.lineWidth = 1.6;
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(8, -12, 0, -28 - rVal * 12);
-            ctx.quadraticCurveTo(-8, -12, 0, 0);
-            ctx.fill();
+            ctx.lineTo(0, -len);
+            ctx.stroke();
             
-            // Side leaflets
-            ctx.fillStyle = '#146c43';
-            for (let i = 0; i < 4; i++) {
+            // Draw 8 pairs of leaflets along the stem
+            ctx.fillStyle = leaves[0] || '#198754';
+            for (let i = 0; i < 9; i++) {
+                const ly = -6 - (i * len * 0.09);
+                const lsize = 7 - (i * 0.6);
+                if (lsize < 1) continue;
+                
+                // Left leaflet
                 ctx.beginPath();
-                ctx.arc(4, -8 - (i*4), 3, 0, Math.PI*2);
-                ctx.arc(-4, -8 - (i*4), 3, 0, Math.PI*2);
+                ctx.ellipse(-lsize * 0.9, ly, lsize, lsize * 0.5, -0.4, 0, Math.PI * 2);
+                ctx.fill();
+                // Right leaflet
+                ctx.beginPath();
+                ctx.ellipse(lsize * 0.9, ly, lsize, lsize * 0.5, 0.4, 0, Math.PI * 2);
                 ctx.fill();
             }
-            ctx.fillStyle = '#198754';
             ctx.restore();
         }
     } else {
         // Bog flowers (Blue Flag Iris)
-        ctx.strokeStyle = '#146c43';
+        // Slender sword leaves
+        ctx.fillStyle = leaves[0] || '#146c43';
+        for (let i = 0; i < 5; i++) {
+            ctx.save();
+            ctx.rotate(-0.4 + i * 0.2);
+            ctx.beginPath();
+            ctx.moveTo(-1.5, 0);
+            ctx.lineTo(1.5, 0);
+            ctx.lineTo(0, -28 - rand() * 8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+        
+        // Iris stems & blooms
+        ctx.strokeStyle = leaves[leaves.length - 1] || '#0f5132';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(-5, -28);
+        ctx.lineTo(-4, -30);
         ctx.stroke();
         
-        // Iris blooms
-        ctx.fillStyle = '#3b82f6';
+        // Iris flower head
+        ctx.save();
+        ctx.translate(-4, -30);
+        
+        const bloomColor = blooms[0] || '#3b82f6'; // violet blue
+        const bloomLight = blooms[Math.min(1, blooms.length - 1)] || '#60a5fa';
+        
+        // Falling petals
+        ctx.fillStyle = bloomColor;
+        for (let p = 0; p < 3; p++) {
+            ctx.save();
+            ctx.rotate((p * Math.PI * 2) / 3);
+            ctx.beginPath();
+            ctx.ellipse(0, 4, 3.5, 7, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Yellow central signal dot
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(0, 3, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            ctx.fillStyle = bloomColor;
+        }
+        // Standard upward petals
+        ctx.fillStyle = bloomLight;
         ctx.beginPath();
-        ctx.arc(-5, -28, 5, 0, Math.PI*2);
+        ctx.ellipse(-2.5, -2, 2.5, 6, -0.3, 0, Math.PI * 2);
+        ctx.ellipse(2.5, -2, 2.5, 6, 0.3, 0, Math.PI * 2);
         ctx.fill();
         
-        ctx.fillStyle = '#60a5fa';
-        ctx.beginPath();
-        ctx.arc(-8, -25, 4, 0, Math.PI*2);
-        ctx.arc(-2, -25, 4, 0, Math.PI*2);
-        ctx.fill();
+        ctx.restore();
     }
 }
 
 function drawDesertOasisPlant(ctx, type, rVal) {
     ctx.shadowColor = 'rgba(0,0,0,0.15)';
-    ctx.shadowBlur = 5;
-
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+    
+    const colorsInfo = getSeasonalColors('desert-oasis', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 123);
+    
     if (type === 'background') {
-        // Majestic Saguaro Cactus
-        ctx.fillStyle = '#2d6a4f';
+        // Majestic Saguaro Cactus with 3D ribbed shading
+        ctx.fillStyle = leaves[leaves.length - 1] || '#2d6a4f';
         ctx.strokeStyle = '#1b4332';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.2;
         
-        // Main stem
-        const trunkW = 12;
-        const trunkH = 80 + rVal * 30;
+        // Main stem dimensions
+        const wVal = 13;
+        const hVal = 85 + rand() * 25;
+        
+        // Draw stem
         ctx.beginPath();
-        ctx.roundRect(-trunkW/2, -trunkH, trunkW, trunkH, [6, 6, 0, 0]);
+        ctx.roundRect(-wVal / 2, -hVal, wVal, hVal, [6.5, 6.5, 0, 0]);
         ctx.fill();
         ctx.stroke();
         
-        // Left arm
+        // Draw vertical ribs (3D shading lines)
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(-trunkW/2, -trunkH * 0.4);
-        ctx.lineTo(-trunkW/2 - 14, -trunkH * 0.4);
-        ctx.lineTo(-trunkW/2 - 14, -trunkH * 0.7);
-        ctx.lineTo(-trunkW/2 - 4, -trunkH * 0.7);
-        ctx.lineTo(-trunkW/2 - 4, -trunkH * 0.48);
-        ctx.lineTo(-trunkW/2, -trunkH * 0.48);
+        ctx.moveTo(-wVal * 0.25, -2);
+        ctx.lineTo(-wVal * 0.25, -hVal + 5);
+        ctx.moveTo(wVal * 0.25, -2);
+        ctx.lineTo(wVal * 0.25, -hVal + 5);
+        ctx.stroke();
+        
+        // Left arm
+        ctx.fillStyle = leaves[leaves.length - 1] || '#2d6a4f';
+        ctx.strokeStyle = '#1b4332';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(-wVal / 2, -hVal * 0.4);
+        ctx.lineTo(-wVal / 2 - 15, -hVal * 0.4);
+        ctx.lineTo(-wVal / 2 - 15, -hVal * 0.7);
+        ctx.lineTo(-wVal / 2 - 5, -hVal * 0.7);
+        ctx.lineTo(-wVal / 2 - 5, -hVal * 0.48);
+        ctx.lineTo(-wVal / 2, -hVal * 0.48);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         
         // Right arm
         ctx.beginPath();
-        ctx.moveTo(trunkW/2, -trunkH * 0.5);
-        ctx.lineTo(trunkW/2 + 12, -trunkH * 0.5);
-        ctx.lineTo(trunkW/2 + 12, -trunkH * 0.78);
-        ctx.lineTo(trunkW/2 + 4, -trunkH * 0.78);
-        ctx.lineTo(trunkW/2 + 4, -trunkH * 0.58);
-        ctx.lineTo(trunkW/2, -trunkH * 0.58);
+        ctx.moveTo(wVal / 2, -hVal * 0.5);
+        ctx.lineTo(wVal / 2 + 13, -hVal * 0.5);
+        ctx.lineTo(wVal / 2 + 13, -hVal * 0.78);
+        ctx.lineTo(wVal / 2 + 5, -hVal * 0.78);
+        ctx.lineTo(wVal / 2 + 5, -hVal * 0.58);
+        ctx.lineTo(wVal / 2, -hVal * 0.58);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
     } else if (type === 'midground') {
         // Prickly Pear Cactus
-        ctx.fillStyle = '#40916c';
+        ctx.fillStyle = leaves[0] || '#40916c';
         ctx.strokeStyle = '#f59e0b'; // tiny golden needles outline
         ctx.lineWidth = 0.8;
         
-        // Base lobe
+        // Base pad
         ctx.beginPath();
-        ctx.ellipse(0, -12, 12, 16, 0, 0, Math.PI*2);
+        ctx.ellipse(0, -13, 13, 17, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         
-        // Upper lobes
+        // Upper pads
         ctx.save();
-        ctx.translate(-8, -24);
-        ctx.rotate(-0.4);
+        ctx.translate(-9, -26);
+        ctx.rotate(-0.45);
         ctx.beginPath();
-        ctx.ellipse(0, 0, 9, 12, 0, 0, Math.PI*2);
+        ctx.ellipse(0, 0, 10, 13, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        
+        // Fruit on top of left pad
+        ctx.fillStyle = blooms[0] || '#ec4899';
+        ctx.beginPath();
+        ctx.arc(-2, -14, 3.5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
         
         ctx.save();
-        ctx.translate(8, -22);
-        ctx.rotate(0.3);
+        ctx.translate(9, -24);
+        ctx.rotate(0.35);
         ctx.beginPath();
-        ctx.ellipse(0, 0, 8, 11, 0, 0, Math.PI*2);
+        ctx.ellipse(0, 0, 9, 12, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        ctx.restore();
         
-        // Pink fruits on tops of pads
-        ctx.fillStyle = '#ec4899';
+        // Fruit on top of right pad
+        ctx.fillStyle = blooms[0] || '#ec4899';
         ctx.beginPath();
-        ctx.arc(-14, -34, 3, 0, Math.PI*2);
-        ctx.arc(14, -30, 3, 0, Math.PI*2);
+        ctx.arc(2, -13, 3.5, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
     } else {
         // Agave pup (small, spiky rosette)
-        ctx.fillStyle = '#52b788';
-        ctx.strokeStyle = '#2d6a4f';
+        ctx.fillStyle = leaves[Math.min(1, leaves.length - 1)] || '#52b788';
+        ctx.strokeStyle = leaves[leaves.length - 1] || '#2d6a4f';
         ctx.lineWidth = 1.2;
         
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 9; i++) {
             ctx.save();
-            const angle = -Math.PI * 0.8 + (i * Math.PI * 0.6) / 7;
+            const angle = -Math.PI * 0.8 + (i * Math.PI * 0.6) / 8;
             ctx.rotate(angle);
+            
+            const len = 16 + rand() * 8;
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(6, -6, 0, -18);
+            ctx.quadraticCurveTo(6, -6, 0, -len);
             ctx.quadraticCurveTo(-6, -6, 0, 0);
             ctx.fill();
             ctx.stroke();
@@ -1805,301 +2421,607 @@ function drawDesertOasisPlant(ctx, type, rVal) {
 }
 
 function drawWoodlandShadePlant(ctx, type, rVal) {
+    ctx.shadowColor = 'rgba(0,0,0,0.1)';
+    ctx.shadowBlur = 4;
+    
+    const colorsInfo = getSeasonalColors('woodland-shade', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 47);
+    
     if (type === 'background') {
         // Red Maple sapling (airy silhouette)
         ctx.strokeStyle = '#3e2723';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.5;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.quadraticCurveTo(-8, -35, -4, -70);
+        ctx.quadraticCurveTo(-8, -35, -4, -75);
         ctx.stroke();
         
         // Branches
         ctx.strokeStyle = '#4e342e';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.moveTo(-6, -45);
-        ctx.lineTo(-20, -58);
+        ctx.lineTo(-22, -60);
         ctx.moveTo(-5, -55);
-        ctx.lineTo(15, -68);
+        ctx.lineTo(16, -70);
         ctx.stroke();
         
-        // Starry red leaves
-        ctx.fillStyle = '#b91c1c';
+        // Starry red leaves (using blooms colors in Autumn/Spring)
+        const leafColor = blooms[0] || '#b91c1c';
         const leafClusters = [
-            { x: -4, y: -70 },
-            { x: -20, y: -58 },
-            { x: 15, y: -68 }
+            { x: -4, y: -75 },
+            { x: -22, y: -60 },
+            { x: 16, y: -70 }
         ];
+        
         leafClusters.forEach(c => {
-            for (let i = 0; i < 5; i++) {
+            ctx.fillStyle = leafColor;
+            for (let i = 0; i < 7; i++) {
+                const angle = rand() * Math.PI * 2;
+                const dist = 8 * rand();
                 ctx.beginPath();
-                ctx.arc(c.x + Math.sin(i)*8, c.y + Math.cos(i)*5, 5, 0, Math.PI*2);
+                ctx.arc(c.x + Math.cos(angle)*dist, c.y + Math.sin(angle)*dist, 4.5, 0, Math.PI * 2);
                 ctx.fill();
             }
         });
     } else if (type === 'midground') {
         // Shade Woodland Hostas (broad variegated foliage)
-        ctx.fillStyle = '#0f5132'; // dark green
+        ctx.fillStyle = leaves[leaves.length - 1] || '#0f5132'; // dark green
         ctx.strokeStyle = '#e0e7ff'; // white margins
         ctx.lineWidth = 1.2;
         
-        for (let i = 0; i < 9; i++) {
+        for (let i = 0; i < 10; i++) {
             ctx.save();
-            const angle = -Math.PI * 0.8 + (i * Math.PI * 0.6) / 8;
+            const angle = -Math.PI * 0.8 + (i * Math.PI * 0.6) / 9;
             ctx.rotate(angle);
+            
+            const len = 22 + rand() * 10;
+            const w = 10;
+            
+            // Variegated margin first
+            ctx.fillStyle = '#f8fafc'; // creamy white margin
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(12, -8, 0, -22 - rVal*8);
-            ctx.quadraticCurveTo(-12, -8, 0, 0);
+            ctx.quadraticCurveTo(w + 1, -len * 0.45, 0, -len - 1);
+            ctx.quadraticCurveTo(-w - 1, -len * 0.45, 0, 0);
+            ctx.closePath();
             ctx.fill();
-            ctx.stroke();
+            
+            // Inner green leaf
+            ctx.fillStyle = leaves[0] || '#0f5132';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(w - 0.8, -len * 0.45, 0, -len);
+            ctx.quadraticCurveTo(-w - 0.8, -len * 0.45, 0, 0);
+            ctx.closePath();
+            ctx.fill();
+            
             ctx.restore();
         }
     } else {
         // Creeping forest moss mounds
-        ctx.fillStyle = '#3f6212';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 20 + rVal * 15, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
+        const mossColor1 = leaves[0] || '#3f6212';
+        const mossColor2 = leaves[Math.min(1, leaves.length - 1)] || '#65a30d';
         
-        // Light moss accents
-        ctx.fillStyle = '#65a30d';
+        const mRadiusX = 22 + rand() * 15;
+        const mRadiusY = 7;
+        
+        // Moss gradient
+        const mossGrad = ctx.createRadialGradient(-3, -2, 0, 0, 0, mRadiusX);
+        mossGrad.addColorStop(0, mossColor2);
+        mossGrad.addColorStop(0.8, mossColor1);
+        mossGrad.addColorStop(1, '#1e293b'); // border blend with dark mulch
+        
+        ctx.fillStyle = mossGrad;
         ctx.beginPath();
-        ctx.ellipse(-4, -1, 10 + rVal * 8, 3, -0.1, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, mRadiusX, mRadiusY, 0, 0, Math.PI * 2);
         ctx.fill();
     }
 }
 
 function drawFormalFrenchPlant(ctx, type, rVal) {
-    ctx.shadowColor = 'rgba(0,0,0,0.1)';
-    ctx.shadowBlur = 4;
-
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    
+    const colorsInfo = getSeasonalColors('formal-french', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const rand = createLocalRandom(rVal * 202);
+    
+    const darkGreen = leaves[leaves.length - 1] || '#14532d';
+    const lightGreen = leaves[0] || '#15803d';
+    
     if (type === 'background') {
         // Neat Conical Boxwood Topiary
-        ctx.fillStyle = '#14532d';
-        ctx.beginPath();
-        ctx.moveTo(0, -75);
-        ctx.lineTo(-20, 0);
-        ctx.lineTo(20, 0);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Symmetrical trunk
+        // Trunk
         ctx.strokeStyle = '#292524';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.5;
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(0, 8);
         ctx.stroke();
-    } else if (type === 'midground') {
-        // Boxwood Globe
-        ctx.fillStyle = '#165b33';
+        
+        // Conical foliage with 3D horizontal segments/gradient
+        ctx.save();
+        ctx.translate(0, 0);
+        
+        const coneGrad = ctx.createLinearGradient(-20, 0, 20, 0);
+        coneGrad.addColorStop(0, darkGreen);
+        coneGrad.addColorStop(0.5, lightGreen);
+        coneGrad.addColorStop(1, darkGreen);
+        ctx.fillStyle = coneGrad;
+        
         ctx.beginPath();
-        ctx.arc(0, -18, 18, 0, Math.PI*2);
+        ctx.moveTo(0, -78);
+        ctx.lineTo(-22, 0);
+        ctx.lineTo(22, 0);
+        ctx.closePath();
         ctx.fill();
         
+        // Horizontal trim segments (to look manicured)
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 2;
+        for (let y = -60; y <= -10; y += 15) {
+            const widthAtY = 22 * ((78 + y) / 78);
+            ctx.beginPath();
+            ctx.ellipse(0, y, widthAtY, 3, 0, 0, Math.PI);
+            ctx.stroke();
+        }
+        ctx.restore();
+    } else if (type === 'midground') {
+        // Boxwood Globe (Manicured ball topiary)
         // Small stem
         ctx.strokeStyle = '#292524';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(0, -4);
+        ctx.lineTo(0, -5);
         ctx.stroke();
+        
+        // Sphere with radial shading
+        ctx.save();
+        ctx.translate(0, -20);
+        const rad = 19;
+        
+        const sphereGrad = ctx.createRadialGradient(-rad * 0.2, -rad * 0.3, 0, 0, 0, rad);
+        sphereGrad.addColorStop(0, lightGreen);
+        sphereGrad.addColorStop(0.7, darkGreen);
+        sphereGrad.addColorStop(1, '#064e3b');
+        
+        ctx.fillStyle = sphereGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, rad, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Add a trim highlight rim
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(0, 0, rad - 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        ctx.restore();
     } else {
         // Neat rectangular border hedge
-        ctx.fillStyle = '#1b4332';
-        ctx.fillRect(-22, -10, 44, 10);
+        const hedgeGrad = ctx.createLinearGradient(-22, -10, 22, 0);
+        hedgeGrad.addColorStop(0, darkGreen);
+        hedgeGrad.addColorStop(0.5, lightGreen);
+        hedgeGrad.addColorStop(1, darkGreen);
         
-        ctx.strokeStyle = '#40916c';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(-22, -10, 44, 10);
+        ctx.fillStyle = hedgeGrad;
+        ctx.fillRect(-24, -11, 48, 11);
+        
+        // Manicured outline
+        ctx.strokeStyle = '#064e3b';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-24, -11, 48, 11);
+        
+        // Top highlight line
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(-23, -10);
+        ctx.lineTo(23, -10);
+        ctx.stroke();
     }
 }
 
 function drawTropicalJunglePlant(ctx, type, rVal) {
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+    
+    const colorsInfo = getSeasonalColors('tropical-jungle', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 66);
+    
     if (type === 'background') {
         // Broad fan palm leaf branch
-        ctx.strokeStyle = '#1b4332';
-        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = leaves[leaves.length - 1] || '#1b4332';
+        ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.quadraticCurveTo(-15, -30, 20, -70);
+        ctx.quadraticCurveTo(-15, -30, 20, -75);
         ctx.stroke();
         
-        // Palm leaflets radiating outwards
-        ctx.strokeStyle = '#2d6a4f';
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 15; i++) {
-            const px = 10 + i * 1.5;
-            const py = -20 - i * 3.5;
+        // Palm leaflets radiating outwards (tapered lines)
+        ctx.strokeStyle = leaves[0] || '#2d6a4f';
+        ctx.lineWidth = 2.5;
+        for (let i = 0; i < 16; i++) {
+            const px = 8 + i * 1.6;
+            const py = -18 - i * 3.8;
+            const len = 18 + rand() * 12;
+            
             ctx.beginPath();
             ctx.moveTo(px, py);
-            ctx.lineTo(px - 16 - (rVal*10), py + 12 + (i*0.5));
+            ctx.quadraticCurveTo(px - len * 0.5, py + 8 + (i * 0.4), px - len, py + 14);
             ctx.stroke();
         }
     } else if (type === 'midground') {
-        // Monstera leaves / Elephant ears
-        ctx.fillStyle = '#0f5132';
+        // Monstera leaves / Elephant ears (large heart leaf with slits)
+        ctx.fillStyle = leaves[0] || '#0f5132';
         for (let i = 0; i < 5; i++) {
             ctx.save();
-            const angle = -0.6 + i * 0.3;
+            const angle = -0.65 + i * 0.32 + (rand() - 0.5) * 0.15;
             ctx.rotate(angle);
             
-            // Large heart leaf
+            const w = 17;
+            const h = 24 + rand() * 8;
+            
+            // Draw large leaf
             ctx.beginPath();
-            ctx.ellipse(0, -22 - rVal*8, 16, 22, 0.1, 0, Math.PI*2);
+            ctx.ellipse(0, -h, w, h, 0, 0, Math.PI * 2);
             ctx.fill();
             
-            // Leaf slits (drawn as background colored lines)
-            ctx.strokeStyle = 'rgba(20,26,38,0.7)'; // blend with mud/mulch background
-            ctx.lineWidth = 2;
+            // Draw slits by masking/drawing background-colored lines
+            // We use dark mud brown for slits
+            ctx.strokeStyle = '#1c1917'; // background mulch color
+            ctx.lineWidth = 2.5;
             ctx.beginPath();
-            ctx.moveTo(-10, -26);
-            ctx.lineTo(-4, -20);
-            ctx.moveTo(10, -26);
-            ctx.lineTo(4, -20);
+            // Slit left 1
+            ctx.moveTo(-w * 0.8, -h * 1.2);
+            ctx.lineTo(-w * 0.2, -h * 0.9);
+            // Slit left 2
+            ctx.moveTo(-w * 0.9, -h * 0.7);
+            ctx.lineTo(-w * 0.2, -h * 0.6);
+            // Slit right 1
+            ctx.moveTo(w * 0.8, -h * 1.2);
+            ctx.lineTo(w * 0.2, -h * 0.9);
+            // Slit right 2
+            ctx.moveTo(w * 0.9, -h * 0.7);
+            ctx.lineTo(w * 0.2, -h * 0.6);
             ctx.stroke();
+            
+            // Center main vein
+            ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -h * 1.95);
+            ctx.stroke();
+            
             ctx.restore();
         }
     } else {
-        // Bird of paradise flower (exotic shape, orange and neon blue)
-        ctx.strokeStyle = '#1b4332';
-        ctx.lineWidth = 2.5;
+        // Bird of paradise flower (exotic orange & blue pointed flower)
+        ctx.strokeStyle = leaves[leaves.length - 1] || '#1b4332';
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(-5, -30);
+        ctx.lineTo(-5, -34);
         ctx.stroke();
         
-        // Orange flower beak
-        ctx.fillStyle = '#f97316';
+        // Flower beak
+        ctx.fillStyle = '#1e3a8a'; // dark indigo beak base
         ctx.beginPath();
-        ctx.moveTo(-5, -30);
-        ctx.lineTo(-20, -35);
+        ctx.moveTo(-5, -34);
+        ctx.quadraticCurveTo(-15, -32, -22, -30);
         ctx.lineTo(-5, -42);
         ctx.closePath();
         ctx.fill();
         
+        // Orange petals
+        const orangeColor = blooms[0] || '#f97316';
+        ctx.fillStyle = orangeColor;
+        for (let p = 0; p < 4; p++) {
+            ctx.save();
+            ctx.translate(-5, -38);
+            ctx.rotate(-0.2 - p * 0.25);
+            
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(8, -12, 0, -22);
+            ctx.quadraticCurveTo(-5, -12, 0, 0);
+            ctx.fill();
+            ctx.restore();
+        }
+        
         // Neon blue spikes
-        ctx.fillStyle = '#06b6d4';
+        const blueColor = blooms[Math.min(1, blooms.length - 1)] || '#06b6d4';
+        ctx.fillStyle = blueColor;
         ctx.beginPath();
-        ctx.moveTo(-5, -30);
-        ctx.lineTo(-2, -48);
-        ctx.lineTo(-8, -44);
+        ctx.moveTo(-8, -37);
+        ctx.lineTo(-3, -54);
+        ctx.lineTo(-12, -48);
         ctx.closePath();
         ctx.fill();
     }
 }
 
 function drawPollinatorPlant(ctx, type, rVal) {
-    // Dense flower fields for bees
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    
+    const colorsInfo = getSeasonalColors('pollinator', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 88);
+    
     if (type === 'background') {
-        // Tall Coneflowers (Purple coneflowers)
-        ctx.strokeStyle = '#0f766e';
-        ctx.lineWidth = 2;
+        // Tall Purple Coneflowers (Echinacea)
+        const stemColor = leaves[leaves.length - 1] || '#0f766e';
+        ctx.strokeStyle = stemColor;
+        ctx.lineWidth = 2.5;
+        const hVal = 58 + rand() * 15;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(-4, -55 - rVal*15);
+        ctx.lineTo(-4, -hVal);
         ctx.stroke();
         
-        // Flower petals
-        ctx.fillStyle = '#df73ff'; // magenta
-        ctx.beginPath();
-        ctx.ellipse(-4, -55 - rVal*15, 12, 4, 0.2, 0, Math.PI*2);
-        ctx.fill();
+        ctx.save();
+        ctx.translate(-4, -hVal);
         
-        // Prominent cone
-        ctx.fillStyle = '#78350f'; // copper brown cone
-        ctx.beginPath();
-        ctx.arc(-4, -58 - rVal*15, 4.5, 0, Math.PI*2);
-        ctx.fill();
-    } else if (type === 'midground') {
-        // Butterfly bush (dense clustering of lilac florets)
-        ctx.fillStyle = '#065f46';
-        ctx.beginPath();
-        ctx.arc(0, -10, 20, 0, Math.PI*2);
-        ctx.fill();
-        
-        // Lilac flower spires
-        ctx.fillStyle = '#a78bfa';
-        for (let i = 0; i < 6; i++) {
-            const h = 18 + rVal * 10;
-            const fx = -15 + i*6;
-            ctx.fillRect(fx - 2, -h - 8, 4, h);
+        // Drooping coneflower petals (cone is pointing up, petals drooping down)
+        const petalColor = blooms[0] || '#df73ff';
+        ctx.fillStyle = petalColor;
+        const petalCount = 8;
+        for (let p = 0; p < petalCount; p++) {
+            ctx.save();
+            // Rotate downward-pointing petals
+            const pAngle = Math.PI / 4 + (p * Math.PI * 0.5) / (petalCount - 1);
+            ctx.rotate(pAngle);
             ctx.beginPath();
-            ctx.arc(fx, -h - 8, 4, 0, Math.PI*2);
+            ctx.ellipse(0, 8, 3, 10, 0, 0, Math.PI * 2);
             ctx.fill();
+            ctx.restore();
         }
         
-        // Draw tiny honeybee dots buzzing around!
-        ctx.fillStyle = '#fbbf24'; // yellow body
+        // Highly detailed copper-brown seed cone on top
+        const coneGrad = ctx.createRadialGradient(0, -3, 0, 0, 0, 7);
+        coneGrad.addColorStop(0, '#ea580c'); // bright orange-copper center
+        coneGrad.addColorStop(0.8, '#78350f'); // deep copper brown border
+        coneGrad.addColorStop(1, '#451a03');
+        
+        ctx.fillStyle = coneGrad;
         ctx.beginPath();
-        ctx.ellipse(18, -32, 2.5, 1.8, 0.2, 0, Math.PI*2);
+        ctx.arc(0, -2, 6.5, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#111827'; // black stripes
-        ctx.fillRect(17, -33, 1, 3.5);
-    } else {
-        // Creeping phlox (dense carpet of tiny pink flowers)
-        ctx.fillStyle = '#ec4899';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 16 + rVal * 10, 5, 0, 0, Math.PI*2);
-        ctx.fill();
-        // Individual blossoms
-        ctx.fillStyle = '#f472b6';
-        for (let i = 0; i < 6; i++) {
+        
+        // Cone texture (little seed spike dots)
+        ctx.fillStyle = '#b45309';
+        for (let d = 0; d < 6; d++) {
             ctx.beginPath();
-            ctx.arc(-8 + i*3.2, -1 - (Math.cos(i)*1.5), 2.5, 0, Math.PI*2);
+            ctx.arc(-3 + (d % 3)*3, -4 + Math.floor(d / 3)*3, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    } else if (type === 'midground') {
+        // Butterfly bush (Lilac flower spires & honeybee)
+        drawLeafyMound(ctx, 30, 30, rVal, 10);
+        
+        // Lilac flower cones
+        const coneColor = blooms[0] || '#a78bfa';
+        const coneLight = blooms[Math.min(1, blooms.length - 1)] || '#ddd6fe';
+        
+        for (let i = 0; i < 5; i++) {
+            const h = 20 + rand() * 12;
+            const fx = -16 + i * 8;
+            
+            ctx.save();
+            ctx.translate(fx, -14 - rand() * 10);
+            ctx.rotate(-0.3 + i * 0.15);
+            
+            // Draw a cone shape filled with many small flower dots
+            const coneGrad = ctx.createLinearGradient(0, 0, 0, -h);
+            coneGrad.addColorStop(0, coneColor);
+            coneGrad.addColorStop(1, coneLight);
+            ctx.fillStyle = coneGrad;
+            
+            ctx.beginPath();
+            ctx.moveTo(-6, 0);
+            ctx.lineTo(6, 0);
+            ctx.lineTo(0, -h);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Flower dots for texture
+            ctx.fillStyle = coneLight;
+            for (let d = 0; d < 12; d++) {
+                const dy = -rand() * h;
+                const dx = (rand() - 0.5) * 10 * ((h + dy) / h);
+                ctx.beginPath();
+                ctx.arc(dx, dy, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+        
+        // Honeybee dot buzzing around!
+        ctx.save();
+        ctx.translate(22, -35);
+        ctx.shadowColor = 'transparent';
+        
+        // Wings
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath();
+        ctx.ellipse(-2, -3, 2, 4, -0.4, 0, Math.PI * 2);
+        ctx.ellipse(2, -3, 2, 4, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Yellow/Black striped body
+        ctx.fillStyle = '#fbbf24'; // yellow
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 4.5, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#111827'; // black stripes
+        ctx.fillRect(-2, -2.5, 1.2, 5);
+        ctx.fillRect(1, -2.5, 1.2, 5);
+        ctx.restore();
+    } else {
+        // Creeping phlox (dense carpet of tiny pink/purple flowers)
+        const phloxGrad = ctx.createLinearGradient(-18, 0, 18, 0);
+        phloxGrad.addColorStop(0, blooms[0] || '#ec4899');
+        phloxGrad.addColorStop(0.5, blooms[Math.min(1, blooms.length - 1)] || '#f472b6');
+        phloxGrad.addColorStop(1, blooms[0] || '#db2777');
+        
+        ctx.fillStyle = phloxGrad;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 18 + rand() * 10, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Overlay small flower stars
+        ctx.fillStyle = '#ffffff'; // white eye phlox
+        for (let i = 0; i < 9; i++) {
+            const fx = -12 + rand() * 24;
+            const fy = -1.5 - rand() * 4;
+            ctx.beginPath();
+            ctx.arc(fx, fy, 1.2, 0, Math.PI * 2);
             ctx.fill();
         }
     }
 }
 
 function drawRockAlpinePlant(ctx, type, rVal) {
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    
+    const colorsInfo = getSeasonalColors('rock-alpine', state.activeSeason);
+    const leaves = colorsInfo.leafColors;
+    const blooms = colorsInfo.bloomColors;
+    const rand = createLocalRandom(rVal * 43);
+    
     if (type === 'background') {
-        // Dwarf conifer (neat small pine tree shape)
-        ctx.fillStyle = '#064e3b';
-        ctx.beginPath();
-        ctx.moveTo(0, -55 - rVal*15);
-        ctx.lineTo(-14, -20);
-        ctx.lineTo(14, -20);
-        ctx.closePath();
-        ctx.fill();
+        // Dwarf conifer (manicured pine shape with needle layers)
+        const darkPine = leaves[leaves.length - 1] || '#064e3b';
+        const lightPine = leaves[0] || '#15803d';
         
+        // Trunk
+        ctx.strokeStyle = '#3e2723';
+        ctx.lineWidth = 3.5;
         ctx.beginPath();
-        ctx.moveTo(0, -35);
-        ctx.lineTo(-18, 0);
-        ctx.lineTo(18, 0);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, 8);
+        ctx.stroke();
+        
+        // Draw 3 layers of pine branch triangles
+        const drawPineLayer = (cy, w, h) => {
+            const layerGrad = ctx.createLinearGradient(-w, cy, w, cy);
+            layerGrad.addColorStop(0, darkPine);
+            layerGrad.addColorStop(0.5, lightPine);
+            layerGrad.addColorStop(1, darkPine);
+            
+            ctx.fillStyle = layerGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, cy - h);
+            ctx.lineTo(-w, cy);
+            ctx.lineTo(w, cy);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Needle trim texturing (jagged strokes)
+            ctx.strokeStyle = darkPine;
+            ctx.lineWidth = 1;
+            for (let x = -w + 3; x <= w - 3; x += 4) {
+                ctx.beginPath();
+                ctx.moveTo(x, cy);
+                ctx.lineTo(x + (rand() - 0.5) * 3, cy + 3);
+                ctx.stroke();
+            }
+        };
+        
+        drawPineLayer(0, 20, 22);
+        drawPineLayer(-16, 16, 18);
+        drawPineLayer(-30, 11, 15);
+        
     } else if (type === 'midground') {
         // Creeping Sedum / Stonecrop (Succulent leaves, pink highlights)
-        ctx.fillStyle = '#475569'; // slate grey stone base
+        // Slate base stone first
+        ctx.fillStyle = '#4b5563'; // slate grey stone
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.ellipse(0, 0, 15, 6, 0, 0, Math.PI*2);
+        ctx.ellipse(0, 0, 16, 6, 0.05, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
         
         // Creeping pink sedum succulent cover
-        ctx.fillStyle = '#db2777'; // dark pink
-        for (let i = 0; i < 7; i++) {
+        const pinkColor = blooms[0] || '#db2777';
+        const lightPink = blooms[Math.min(1, blooms.length - 1)] || '#f472b6';
+        
+        for (let i = 0; i < 9; i++) {
+            const sx = -11 + i * 2.8;
+            const sy = -3 - rand() * 4;
+            const size = 3 + rand() * 2;
+            
+            // Draw tiny rosette succulent
+            ctx.save();
+            ctx.translate(sx, sy);
+            ctx.fillStyle = pinkColor;
+            for (let r = 0; r < 4; r++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.beginPath();
+                ctx.ellipse(size * 0.4, 0, size * 0.6, size * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = lightPink;
             ctx.beginPath();
-            ctx.arc(-10 + i * 3.5, -4 - (Math.sin(i)*1.5), 3, 0, Math.PI*2);
+            ctx.arc(0, 0, size * 0.25, 0, Math.PI * 2);
             ctx.fill();
+            ctx.restore();
         }
     } else {
         // Alpine rock cluster and moss
-        ctx.fillStyle = '#4b5563'; // Rock grey
-        ctx.beginPath();
-        ctx.moveTo(-10, 0);
-        ctx.lineTo(-4, -8);
-        ctx.lineTo(6, -6);
-        ctx.lineTo(10, 0);
-        ctx.closePath();
-        ctx.fill();
+        // 3D shaded rocks
+        const drawRock = (rx, ry, w, h, angle) => {
+            ctx.save();
+            ctx.translate(rx, ry);
+            ctx.rotate(angle);
+            
+            // Rock linear gradient
+            const rockGrad = ctx.createLinearGradient(-w, -h, w, h);
+            rockGrad.addColorStop(0, '#94a3b8'); // light slate highlight
+            rockGrad.addColorStop(0.6, '#475569');
+            rockGrad.addColorStop(1, '#334155'); // shadow
+            
+            ctx.fillStyle = rockGrad;
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1.8;
+            
+            ctx.beginPath();
+            ctx.moveTo(-w, 0);
+            ctx.lineTo(-w * 0.4, -h);
+            ctx.lineTo(w * 0.5, -h * 0.85);
+            ctx.lineTo(w, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        };
         
-        // Moss accent
-        ctx.fillStyle = '#4d7c0f';
+        drawRock(-8, 0, 10, 8, -0.15);
+        drawRock(6, 0, 9, 7, 0.2);
+        
+        // Moss accent growing on rock crevices
+        const mossColor = leaves[0] || '#4d7c0f';
+        ctx.fillStyle = mossColor;
         ctx.beginPath();
-        ctx.ellipse(4, -1, 6, 2, 0.1, 0, Math.PI*2);
+        ctx.ellipse(-1, -3, 8, 2.5, 0.08, 0, Math.PI * 2);
         ctx.fill();
     }
 }
@@ -2634,18 +3556,27 @@ function checkWinterOverride(ctx, type, rVal) {
     if (state.activeSeason !== 'winter') return false;
     
     ctx.shadowColor = 'rgba(0,0,0,0.1)';
-    ctx.shadowBlur = 3;
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 1;
+    
+    const rand = createLocalRandom(rVal * 77);
 
     if (type === 'background') {
         // Bare woody branches
-        ctx.strokeStyle = '#374151'; // dark brown-grey twig
-        ctx.lineWidth = 3.5;
+        const branchGrad = ctx.createLinearGradient(0, 0, 0, -75);
+        branchGrad.addColorStop(0, '#2d3748'); // very dark slate
+        branchGrad.addColorStop(1, '#4a5568'); // medium slate
+        
+        ctx.strokeStyle = branchGrad;
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.quadraticCurveTo(-8, -35, -2, -75);
         ctx.stroke();
         
-        ctx.lineWidth = 1.8;
+        // Secondary branches
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
         ctx.moveTo(-4, -40);
         ctx.quadraticCurveTo(-18, -55, -22, -45);
@@ -2653,28 +3584,57 @@ function checkWinterOverride(ctx, type, rVal) {
         ctx.quadraticCurveTo(15, -65, 20, -52);
         ctx.stroke();
         
-        // Tiny red berries
-        ctx.fillStyle = '#be123c'; // red winter berry
-        ctx.beginPath();
-        ctx.arc(-22, -45, 3, 0, Math.PI*2);
-        ctx.arc(20, -52, 3, 0, Math.PI*2);
-        ctx.arc(-2, -75, 3, 0, Math.PI*2);
-        ctx.fill();
+        // Detailed red winter berries
+        const drawBerry = (bx, by) => {
+            ctx.save();
+            ctx.translate(bx, by);
+            const berryGrad = ctx.createRadialGradient(-0.8, -0.8, 0, 0, 0, 3.5);
+            berryGrad.addColorStop(0, '#f87171'); // bright red highlight
+            berryGrad.addColorStop(0.7, '#be123c'); // deep crimson red
+            berryGrad.addColorStop(1, '#991b1b');
+            ctx.fillStyle = berryGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        };
+        drawBerry(-22, -45);
+        drawBerry(20, -52);
+        drawBerry(-2, -75);
         
         // Snow caps on branches
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.ellipse(-2, -78, 5, 2.5, 0, 0, Math.PI*2);
-        ctx.fill();
+        const drawSnowCap = (sx, sy, sw, sh) => {
+            ctx.save();
+            ctx.translate(sx, sy);
+            const snowGrad = ctx.createRadialGradient(0, -sh * 0.2, 0, 0, 0, sw);
+            snowGrad.addColorStop(0, '#ffffff');
+            snowGrad.addColorStop(0.8, '#f1f5f9');
+            snowGrad.addColorStop(1, '#cbd5e1'); // soft blue-grey shadow
+            ctx.fillStyle = snowGrad;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, sw, sh, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        };
+        drawSnowCap(-2, -78, 6.5, 3);
+        drawSnowCap(-16, -53, 5, 2.2);
+        drawSnowCap(15, -61, 5.5, 2.5);
     } else if (type === 'midground') {
         // Dormant/frosted grass clump
-        ctx.strokeStyle = '#475569'; // dormant slate
-        ctx.lineWidth = 1.5;
-        for (let i = 0; i < 7; i++) {
-            const h = 20 + rVal * 10;
-            const angle = -0.5 + (i * 1.0) / 6;
+        for (let i = 0; i < 9; i++) {
+            const h = 20 + rand() * 12;
+            const angle = -0.55 + (i * 1.1) / 8;
             ctx.save();
             ctx.rotate(angle);
+            
+            // Grass stalk gradient (slate grey to silver white)
+            const stalkGrad = ctx.createLinearGradient(0, 0, 0, -h);
+            stalkGrad.addColorStop(0, '#475569'); // dormant base
+            stalkGrad.addColorStop(0.7, '#94a3b8');
+            stalkGrad.addColorStop(1, '#f1f5f9'); // silver frosted tip
+            
+            ctx.strokeStyle = stalkGrad;
+            ctx.lineWidth = 1.6;
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(0, -h);
@@ -2683,24 +3643,40 @@ function checkWinterOverride(ctx, type, rVal) {
         }
         
         // Snow pile at base
-        ctx.fillStyle = '#f8fafc';
+        const baseSnowGrad = ctx.createRadialGradient(0, -1, 0, 0, 0, 18);
+        baseSnowGrad.addColorStop(0, '#ffffff');
+        baseSnowGrad.addColorStop(0.8, '#f1f5f9');
+        baseSnowGrad.addColorStop(1, '#cbd5e1');
+        ctx.fillStyle = baseSnowGrad;
         ctx.beginPath();
-        ctx.ellipse(0, 0, 16, 5, 0, 0, Math.PI*2);
+        ctx.ellipse(0, 0, 18, 5.5, 0, 0, Math.PI * 2);
         ctx.fill();
     } else {
         // Snow mound with small grey rock
-        ctx.fillStyle = '#64748b'; // grey rock
+        // Rock with shading
+        const rockGrad = ctx.createLinearGradient(-8, -6, 8, 0);
+        rockGrad.addColorStop(0, '#64748b'); // medium grey
+        rockGrad.addColorStop(1, '#334155'); // dark slate
+        ctx.fillStyle = rockGrad;
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(-8, 0);
-        ctx.lineTo(-4, -6);
-        ctx.lineTo(4, -5);
-        ctx.lineTo(8, 0);
+        ctx.lineTo(-4, -6.5);
+        ctx.lineTo(4.5, -5.5);
+        ctx.lineTo(8.5, 0);
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
         
-        ctx.fillStyle = '#ffffff'; // snow cap
+        // Fluffy snow cap
+        const rockSnowGrad = ctx.createRadialGradient(0, -1, 0, 0, 0, 13);
+        rockSnowGrad.addColorStop(0, '#ffffff');
+        rockSnowGrad.addColorStop(0.8, '#f8fafc');
+        rockSnowGrad.addColorStop(1, '#e2e8f0');
+        ctx.fillStyle = rockSnowGrad;
         ctx.beginPath();
-        ctx.ellipse(0, 0, 12, 4, 0, 0, Math.PI*2);
+        ctx.ellipse(0, 0, 13, 4.2, 0, 0, Math.PI * 2);
         ctx.fill();
     }
     
