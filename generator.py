@@ -351,9 +351,9 @@ def generate_landscape(bg_image_path, theme, soil, acidity, sun, water, ratio, s
         
     return composite
 
-def generate_ai_image_with_gemini(prompt, api_key):
+def generate_ai_image_with_gemini(prompt, api_key, base_image=None):
     """
-    Calls the Google Gemini Imagen REST API to generate a landscaping photo.
+    Calls the Google Gemini REST API to generate or edit a landscaping photo.
     Returns: A PIL Image or None if failed.
     """
     import urllib.request
@@ -362,45 +362,118 @@ def generate_ai_image_with_gemini(prompt, api_key):
     import base64
     from io import BytesIO
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key={api_key}"
-    
-    headers = {
-        "Content-Type": "application/json"
-    }
-    
-    data = {
-        "instances": [
-            {
-                "prompt": prompt
+    if base_image:
+        # Image-to-Image / Inpainting mode using Gemini 3.1 Flash Image
+        try:
+            # base_image can be a PIL Image object or a string path
+            if isinstance(base_image, str):
+                base_img_obj = Image.open(base_image)
+            else:
+                base_img_obj = base_image
+            
+            # Ensure it is in RGB format for JPEG saving
+            base_img_obj = base_img_obj.convert("RGB")
+            
+            # Save to buffer
+            buffered = BytesIO()
+            base_img_obj.save(buffered, format="JPEG")
+            img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key={api_key}"
+            
+            headers = {
+                "Content-Type": "application/json"
             }
-        ],
-        "parameters": {
-            "sampleCount": 1,
-            "outputMimeType": "image/jpeg",
-            "aspectRatio": "4:3"
+            
+            data = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "inlineData": {
+                                    "mimeType": "image/jpeg",
+                                    "data": img_b64
+                                }
+                            },
+                            {
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"]
+                }
+            }
+            
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(data).encode("utf-8"),
+                headers=headers,
+                method="POST"
+            )
+            
+            print(f"Calling Gemini API (generateContent) for image-to-image with prompt: {prompt}...")
+            import ssl
+            context = ssl._create_unverified_context()
+            with urllib.request.urlopen(req, timeout=45, context=context) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                candidates = res_data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    for part in parts:
+                        data_obj = part.get("inlineData") or part.get("inline_data")
+                        if data_obj:
+                            out_b64 = data_obj.get("data")
+                            out_bytes = base64.b64decode(out_b64)
+                            print("  Successfully received image from Gemini API.")
+                            return Image.open(BytesIO(out_bytes)).convert("RGBA")
+                print("  No image returned in Gemini API response.")
+                return None
+        except Exception as e:
+            print(f"Gemini AI Image-to-Image Generation failed: {e}")
+            return None
+    else:
+        # Fallback to Text-to-Image (Imagen 4)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key={api_key}"
+        
+        headers = {
+            "Content-Type": "application/json"
         }
-    }
-    
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(data).encode("utf-8"),
-        headers=headers,
-        method="POST"
-    )
-    
-    try:
-        print(f"Calling Gemini API (predict) with prompt: {prompt}...")
-        import ssl
-        context = ssl._create_unverified_context()
-        with urllib.request.urlopen(req, timeout=45, context=context) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
-            img_b64 = res_data["predictions"][0]["bytesBase64Encoded"]
-            img_bytes = base64.b64decode(img_b64)
-            print("  Successfully received image from Gemini API.")
-            return Image.open(BytesIO(img_bytes)).convert("RGBA")
-    except Exception as e:
-        print(f"Gemini AI Image Generation failed: {e}")
-        return None
+        
+        data = {
+            "instances": [
+                {
+                    "prompt": prompt
+                }
+            ],
+            "parameters": {
+                "sampleCount": 1,
+                "outputMimeType": "image/jpeg",
+                "aspectRatio": "4:3"
+            }
+        }
+        
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(data).encode("utf-8"),
+            headers=headers,
+            method="POST"
+        )
+        
+        try:
+            print(f"Calling Gemini API (predict) with prompt: {prompt}...")
+            import ssl
+            context = ssl._create_unverified_context()
+            with urllib.request.urlopen(req, timeout=45, context=context) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                img_b64 = res_data["predictions"][0]["bytesBase64Encoded"]
+                img_bytes = base64.b64decode(img_b64)
+                print("  Successfully received image from Gemini API.")
+                return Image.open(BytesIO(img_bytes)).convert("RGBA")
+        except Exception as e:
+            print(f"Gemini AI Image Generation failed: {e}")
+            return None
 
 if __name__ == "__main__":
     print("Testing generator.py...")

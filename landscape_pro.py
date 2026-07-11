@@ -592,15 +592,16 @@ class LandscapeProApp(ctk.CTk):
             zone_info = self.get_zone_for_zip(zip_str)
             
             prompt = (
-                f"A professional landscape design photo of a backyard garden, {prompt_theme} style, "
-                f"during {prompt_season} season, under {prompt_sun} exposure. "
-                f"Suitable for USDA Hardiness Zone {zone_info['zone']}. The landscaping features a "
-                f"clean mulched planting bed filled with beautiful, healthy matching plant species, "
-                f"neat borders, highly realistic, high resolution, award-winning garden layout."
+                f"Add a professional landscape design planting bed of {prompt_theme} style "
+                f"appropriate for the {prompt_season} season and under {prompt_sun} exposure. "
+                f"Keep all of the basic objects already present in the existing image (including the fence, "
+                f"house, background trees, sky, lawn, and overall yard layout) exactly the same. Do not overwrite "
+                f"or change them. Only add the new garden bed with mulch or gravel and beautiful, healthy "
+                f"plant species suitable for USDA Hardiness Zone {zone_info['zone']} along the ground."
             )
             
-            # Generate via REST API
-            ai_img = generator.generate_ai_image_with_gemini(prompt, api_key)
+            # Generate via REST API, passing self.current_orig_image as the base image
+            ai_img = generator.generate_ai_image_with_gemini(prompt, api_key, self.current_orig_image)
             if ai_img:
                 self.current_comp_image = ai_img
                 self.generated_concepts[self.active_concept_idx] = ai_img

@@ -31,4 +31,6 @@ __pycache__/
 
 # Test outputs
 test_render_autumn.png
+test_output_edit.png
+test_output_generator_updated.png
 
