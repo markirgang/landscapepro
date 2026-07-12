@@ -252,6 +252,7 @@
                         <div class="nav-tabs">
                             <button id="tab-designer" class="nav-tab active">Garden Designer</button>
                             <button id="tab-placement" class="nav-tab">Placement Diagram</button>
+                            <button id="tab-custom-planner" class="nav-tab">Custom Planner</button>
                             <button id="tab-report" class="nav-tab">US Plant Report</button>
                         </div>
                     </div>
@@ -283,6 +284,12 @@
                         Export Spreadsheet (CSV)
                     </button>
                 </div>
+                <div class="header-right hidden" id="custom-header-actions">
+                    <button id="btn-export-custom-planner" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-left"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Export Custom Layout (PNG)
+                    </button>
+                </div>
             </header>
 
             <!-- Workspace Grid -->
@@ -308,17 +315,6 @@
 
                     <!-- Import Actions Wrapper -->
                     <div class="import-actions-wrapper">
-                        <!-- Google Photos browser button -->
-                        <button id="btn-google-photos" class="btn btn-secondary btn-gphotos">
-                            <svg class="icon-left" viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; margin-right: 6px;">
-                                <path d="M6 12a6 6 0 0 1 6-6v6H6Z" fill="#EA4335"/>
-                                <path d="M12 6a6 6 0 0 1 6 6h-6V6Z" fill="#4285F4"/>
-                                <path d="M18 12a6 6 0 0 1-6 6v-6h6Z" fill="#FBBC05"/>
-                                <path d="M12 18a6 6 0 0 1-6-6h6v6Z" fill="#34A853"/>
-                            </svg>
-                            Browse Google Photos
-                        </button>
-
                         <!-- Photo Link Input Box -->
                         <div class="link-import-box">
                             <label class="link-import-title">Import from URL / Photo Link</label>
@@ -349,6 +345,7 @@
                             <button class="concept-tab active" data-concept="concept-1">Concept 1 (Eco Balanced)</button>
                             <button class="concept-tab" data-concept="concept-2">Concept 2 (Lush Layering)</button>
                             <button class="concept-tab" data-concept="concept-3">Concept 3 (Minimalist Structural)</button>
+                            <button class="concept-tab" data-concept="concept-custom">Concept 4 (Custom Planner)</button>
                         </div>
                     </div>
 
@@ -435,6 +432,9 @@
                             <div class="legend-item"><span class="legend-dot path"></span> Patio / Walkway</div>
                             <div class="legend-item"><span class="legend-dot lawn"></span> Turf / Lawn</div>
                             <div class="legend-item"><span class="legend-dot bed"></span> Garden Bed Mulch</div>
+                            <div class="legend-item" style="margin-left: auto;"><span class="legend-symbol symbol-tree"></span> Tree (Spokes)</div>
+                            <div class="legend-item"><span class="legend-symbol symbol-shrub"></span> Shrub (Scalloped)</div>
+                            <div class="legend-item"><span class="legend-symbol symbol-perennial"></span> Perennial (Spiky)</div>
                         </div>
                     </section>
 
@@ -555,6 +555,82 @@
 
                 <div class="report-footer">
                     <span id="report-count-label">Showing 0 of 0 plants</span>
+                </div>
+            </div>
+
+            <!-- Custom Interactive Planner Container (Hidden by default) -->
+            <div class="custom-planner-workspace hidden" id="custom-planner-workspace">
+                <div class="custom-planner-grid">
+                    <!-- Left: Custom Plant List Controls -->
+                    <section class="panel custom-planner-control-panel">
+                        <div class="panel-header">
+                            <h3>Custom Plant List</h3>
+                            <span class="badge badge-emerald" id="custom-count-badge">0 Plants</span>
+                        </div>
+                        
+                        <!-- Search & Add Plants -->
+                        <div class="custom-search-container">
+                            <div class="search-input-wrapper">
+                                <input type="text" id="custom-plant-search" placeholder="Search plants by name..." class="input-select" style="margin-bottom: 8px;">
+                            </div>
+                            <div class="select-wrapper">
+                                <select id="custom-plant-select" class="input-select" style="width: 100%;">
+                                    <option value="" disabled selected>Select a plant to add...</option>
+                                </select>
+                            </div>
+                            <button id="btn-custom-add-plant" class="btn btn-primary" style="width: 100%; margin-top: 8px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Add Plant Specimen
+                            </button>
+                        </div>
+                        
+                        <!-- List of Active Plants in Custom Layout -->
+                        <div class="custom-table-wrapper">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Key</th>
+                                        <th>Plant Name</th>
+                                        <th>Qty</th>
+                                        <th>Color</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="custom-table-body">
+                                    <!-- Dynamic custom plants rows will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="custom-actions-bar" style="margin-top: 12px; display: flex; gap: 8px;">
+                            <button id="btn-custom-clear" class="btn btn-secondary" style="flex: 1;">Clear Layout</button>
+                            <button id="btn-custom-reset-concept" class="btn btn-secondary" style="flex: 1;" title="Load plants from current active concept">Load Concept</button>
+                        </div>
+                    </section>
+                    
+                    <!-- Right: Drag and Drop Canvas Blueprint -->
+                    <section class="panel custom-canvas-panel">
+                        <div class="panel-header">
+                            <h3>Interactive Custom Blueprint</h3>
+                            <span class="badge" id="custom-dimension-badge">20' x 15' Grid</span>
+                        </div>
+                        <div class="custom-canvas-instructions" style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+                            💡 Click and drag the circular plant keys on the canvas to place them exactly where you want them.
+                        </div>
+                        <div class="custom-canvas-wrapper" style="position: relative;">
+                            <canvas id="custom-planner-canvas"></canvas>
+                        </div>
+                        
+                        <div class="placement-legend" style="margin-top: 12px;">
+                            <div class="legend-item"><span class="legend-dot structure"></span> Structure / Fence</div>
+                            <div class="legend-item"><span class="legend-dot path"></span> Patio / Walkway</div>
+                            <div class="legend-item"><span class="legend-dot lawn"></span> Turf / Lawn</div>
+                            <div class="legend-item"><span class="legend-dot bed"></span> Garden Bed Mulch</div>
+                            <div class="legend-item" style="margin-left: auto;"><span class="legend-symbol symbol-tree"></span> Tree (Spokes)</div>
+                            <div class="legend-item"><span class="legend-symbol symbol-shrub"></span> Shrub (Scalloped)</div>
+                            <div class="legend-item"><span class="legend-symbol symbol-perennial"></span> Perennial (Spiky)</div>
+                        </div>
+                    </section>
                 </div>
             </div>
         </main>

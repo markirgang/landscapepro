@@ -39,7 +39,8 @@ const state = {
     currentZip: null,
     currentAddress: '',
     currentZone: null,
-    settingsDirty: false
+    settingsDirty: false,
+    customPlants: []
 };
 
 // UI Elements
@@ -132,6 +133,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initReportPage();
     initAiCredentials();
     initPlacementExport();
+    initCustomPlannerPage();
     
     // Load default demo space
     loadDemoSpace();
@@ -834,6 +836,14 @@ function initTabs() {
             conceptTabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             state.activeConcept = tab.dataset.concept;
+            
+            if (state.activeConcept === 'concept-custom') {
+                const tabCustomPlanner = document.getElementById('tab-custom-planner');
+                if (tabCustomPlanner) {
+                    tabCustomPlanner.click();
+                }
+                return;
+            }
             updateActiveVisualization();
         });
     });
@@ -3242,9 +3252,11 @@ function initGooglePhotos() {
     });
 
     // Open Google Photos Modal
-    btnGooglePhotos.addEventListener('click', () => {
-        modalGooglePhotos.classList.remove('hidden');
-    });
+    if (btnGooglePhotos) {
+        btnGooglePhotos.addEventListener('click', () => {
+            modalGooglePhotos.classList.remove('hidden');
+        });
+    }
 
     // Close Modal Button
     btnCloseModal.addEventListener('click', () => {
@@ -3984,20 +3996,27 @@ function initReportPage() {
     const filterEdibility = document.getElementById('filter-edibility');
     const btnExportReport = document.getElementById('btn-export-report');
 
+    const tabCustomPlanner = document.getElementById('tab-custom-planner');
+    const customPlannerWorkspace = document.getElementById('custom-planner-workspace');
+    const customHeaderActions = document.getElementById('custom-header-actions');
+
     if (!tabDesigner || !tabReport || !reportWorkspace) return;
 
     // View Toggling logic
     tabDesigner.addEventListener('click', () => {
         tabDesigner.classList.add('active');
         if (tabPlacement) tabPlacement.classList.remove('active');
+        if (tabCustomPlanner) tabCustomPlanner.classList.remove('active');
         tabReport.classList.remove('active');
         
         designerWorkspace.classList.remove('hidden');
         if (placementWorkspace) placementWorkspace.classList.add('hidden');
+        if (customPlannerWorkspace) customPlannerWorkspace.classList.add('hidden');
         reportWorkspace.classList.add('hidden');
         
         designerHeaderActions.classList.remove('hidden');
         if (placementHeaderActions) placementHeaderActions.classList.add('hidden');
+        if (customHeaderActions) customHeaderActions.classList.add('hidden');
         reportHeaderActions.classList.add('hidden');
         
         sidebar.classList.remove('hidden');
@@ -4010,14 +4029,17 @@ function initReportPage() {
         tabPlacement.addEventListener('click', () => {
             tabPlacement.classList.add('active');
             tabDesigner.classList.remove('active');
+            if (tabCustomPlanner) tabCustomPlanner.classList.remove('active');
             tabReport.classList.remove('active');
             
             if (placementWorkspace) placementWorkspace.classList.remove('hidden');
             designerWorkspace.classList.add('hidden');
+            if (customPlannerWorkspace) customPlannerWorkspace.classList.add('hidden');
             reportWorkspace.classList.add('hidden');
             
             if (placementHeaderActions) placementHeaderActions.classList.remove('hidden');
             designerHeaderActions.classList.add('hidden');
+            if (customHeaderActions) customHeaderActions.classList.add('hidden');
             reportHeaderActions.classList.add('hidden');
             
             sidebar.classList.add('hidden'); // Hide sidebar for full diagram workspace
@@ -4029,18 +4051,52 @@ function initReportPage() {
         });
     }
 
+    if (tabCustomPlanner) {
+        tabCustomPlanner.addEventListener('click', () => {
+            tabCustomPlanner.classList.add('active');
+            tabDesigner.classList.remove('active');
+            if (tabPlacement) tabPlacement.classList.remove('active');
+            tabReport.classList.remove('active');
+            
+            if (customPlannerWorkspace) customPlannerWorkspace.classList.remove('hidden');
+            designerWorkspace.classList.add('hidden');
+            if (placementWorkspace) placementWorkspace.classList.add('hidden');
+            reportWorkspace.classList.add('hidden');
+            
+            if (customHeaderActions) customHeaderActions.classList.remove('hidden');
+            designerHeaderActions.classList.add('hidden');
+            if (placementHeaderActions) placementHeaderActions.classList.add('hidden');
+            reportHeaderActions.classList.add('hidden');
+            
+            sidebar.classList.add('hidden'); // Hide sidebar
+            
+            headerTitle.textContent = "Interactive Custom Planner";
+            headerSub.textContent = "Search plants, add them to your schedule, and drag them around the layout grid to customize your garden blueprint.";
+            
+            // Check if we need to load default custom layout from active concept
+            if (state.customPlants.length === 0) {
+                loadCustomLayoutFromActiveConcept();
+            } else {
+                renderCustomPlanner();
+            }
+        });
+    }
+
     tabReport.addEventListener('click', () => {
         tabReport.classList.add('active');
         tabDesigner.classList.remove('active');
         if (tabPlacement) tabPlacement.classList.remove('active');
+        if (tabCustomPlanner) tabCustomPlanner.classList.remove('active');
         
         reportWorkspace.classList.remove('hidden');
         designerWorkspace.classList.add('hidden');
         if (placementWorkspace) placementWorkspace.classList.add('hidden');
+        if (customPlannerWorkspace) customPlannerWorkspace.classList.add('hidden');
         
         reportHeaderActions.classList.remove('hidden');
         designerHeaderActions.classList.add('hidden');
         if (placementHeaderActions) placementHeaderActions.classList.add('hidden');
+        if (customHeaderActions) customHeaderActions.classList.add('hidden');
         
         sidebar.classList.add('hidden'); // Hide sidebar for full screen spreadsheet
 
@@ -4469,7 +4525,8 @@ function getPlacementModel() {
             quantity: baseQty,
             spacing,
             height: plant.height,
-            positions
+            positions,
+            type
         };
     });
     
@@ -4477,6 +4534,47 @@ function getPlacementModel() {
         schedule,
         totalQty
     };
+}
+
+function drawScallopedCircle(ctx, x, y, r, numPoints) {
+    ctx.beginPath();
+    for (let i = 0; i < numPoints; i++) {
+        const angle1 = (i / numPoints) * Math.PI * 2;
+        const angle2 = ((i + 1) / numPoints) * Math.PI * 2;
+        const midAngle = (angle1 + angle2) / 2;
+        
+        // Puff outwards for the scallop curve
+        const cpR = r * 1.18;
+        const cpX = x + Math.cos(midAngle) * cpR;
+        const cpY = y + Math.sin(midAngle) * cpR;
+        
+        const toX = x + Math.cos(angle2) * r;
+        const toY = y + Math.sin(angle2) * r;
+        
+        if (i === 0) {
+            const fromX = x + Math.cos(angle1) * r;
+            const fromY = y + Math.sin(angle1) * r;
+            ctx.moveTo(fromX, fromY);
+        }
+        ctx.quadraticCurveTo(cpX, cpY, toX, toY);
+    }
+    ctx.closePath();
+}
+
+function drawSpikyCircle(ctx, x, y, r, numSpikes) {
+    ctx.beginPath();
+    for (let i = 0; i < numSpikes * 2; i++) {
+        const angle = (i / (numSpikes * 2)) * Math.PI * 2;
+        const currR = (i % 2 === 0) ? r : r * 0.65;
+        const px = x + Math.cos(angle) * currR;
+        const py = y + Math.sin(angle) * currR;
+        if (i === 0) {
+            ctx.moveTo(px, py);
+        } else {
+            ctx.lineTo(px, py);
+        }
+    }
+    ctx.closePath();
 }
 
 function drawPlacementBlueprint(canvas, model) {
@@ -4488,13 +4586,15 @@ function drawPlacementBlueprint(canvas, model) {
     const w = canvas.width;
     const h = canvas.height;
     
-    ctx.fillStyle = "#090d16";
+    // Clear background to white
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, w, h);
     
     const gridCols = parseInt(areaLengthInput ? areaLengthInput.value : 20) || 20;
     const gridRows = parseInt(areaWidthInput ? areaWidthInput.value : 15) || 15;
     
-    ctx.strokeStyle = "rgba(14, 165, 233, 0.08)";
+    // Grid Lines (soft light gray)
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.05)";
     ctx.lineWidth = 1;
     
     for (let c = 0; c <= gridCols; c++) {
@@ -4512,9 +4612,10 @@ function drawPlacementBlueprint(canvas, model) {
         ctx.stroke();
     }
     
-    ctx.fillStyle = "rgba(69, 26, 3, 0.15)";
-    ctx.strokeStyle = "rgba(120, 53, 4, 0.4)";
-    ctx.lineWidth = 2;
+    // Mulch Bed Zone (amber fill/border)
+    ctx.fillStyle = "rgba(251, 191, 36, 0.08)";
+    ctx.strokeStyle = "rgba(217, 119, 6, 0.25)";
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(0, h * 0.1);
     ctx.bezierCurveTo(w * 0.3, h * 0.25, w * 0.7, h * 0.15, w, h * 0.35);
@@ -4524,46 +4625,89 @@ function drawPlacementBlueprint(canvas, model) {
     ctx.fill();
     ctx.stroke();
     
-    ctx.fillStyle = "rgba(20, 83, 45, 0.1)";
+    // Turf Grass (green fill)
+    ctx.fillStyle = "rgba(74, 222, 128, 0.07)";
     ctx.beginPath();
     ctx.arc(w * 0.5, h * 0.5, 120, 0, Math.PI * 2);
     ctx.fill();
     
-    ctx.fillStyle = "rgba(51, 65, 85, 0.25)";
-    ctx.strokeStyle = "rgba(71, 85, 105, 0.4)";
+    // Patio Deck (gray fill/border)
+    ctx.fillStyle = "rgba(241, 245, 249, 0.85)";
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.rect(0, h * 0.75, w * 0.25, h * 0.25);
     ctx.fill();
     ctx.stroke();
     
+    // Structure border line
     ctx.strokeStyle = "#475569";
     ctx.lineWidth = 3;
     ctx.strokeRect(10, 10, w - 20, h - 20);
     
-    ctx.fillStyle = "#94a3b8";
+    // Boundary text labels (dark slate)
+    ctx.fillStyle = "#475569";
     ctx.font = "bold 10px monospace";
     ctx.fillText("STRUCTURE BOUNDARY", 20, 25);
     ctx.fillText("PATIO DECK", 20, h - 20);
     ctx.fillText("MULCH BED ZONE", w * 0.4, h * 0.2);
     ctx.fillText("TURF GRASS", w * 0.47, h * 0.52);
     
+    // Draw plant symbols based on plant type
     model.schedule.forEach(group => {
+        const type = group.type || 'perennial';
         group.positions.forEach(pos => {
             const px = pos.x * w;
             const py = pos.y * h;
             const r = group.positions.length > 5 ? 16 : 24;
             
-            ctx.fillStyle = group.color + "45";
+            // Lighter translucent background of the plant color
+            ctx.fillStyle = group.color + "1a"; 
             ctx.strokeStyle = group.color;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1.8;
             
-            ctx.beginPath();
-            ctx.arc(px, py, r, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
+            if (type === 'tree') {
+                // Tree: circle background with spokes
+                ctx.beginPath();
+                ctx.arc(px, py, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(px, py, r * 0.35, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                const numSpokes = 8;
+                for (let i = 0; i < numSpokes; i++) {
+                    const angle = (i / numSpokes) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(px + Math.cos(angle) * (r * 0.35), py + Math.sin(angle) * (r * 0.35));
+                    ctx.lineTo(px + Math.cos(angle) * r, py + Math.sin(angle) * r);
+                    ctx.stroke();
+                }
+            } else if (type === 'shrub') {
+                // Shrub: scalloped circle
+                drawScallopedCircle(ctx, px, py, r, 8);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(px, py, r * 0.45, 0, Math.PI * 2);
+                ctx.stroke();
+            } else {
+                // Perennial: spiky starburst
+                drawSpikyCircle(ctx, px, py, r, 8);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(px, py, r * 0.3, 0, Math.PI * 2);
+                ctx.stroke();
+            }
             
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 12px sans-serif";
+            // Dark readable key letter text in the center
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 11px sans-serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(group.symbol, px, py);
@@ -4633,6 +4777,473 @@ function initPlacementExport() {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    });
+}
+
+// -------------------------------------------------------------
+// INTERACTIVE CUSTOM PLANNER PAGE
+// -------------------------------------------------------------
+let customSearchInput, customSelectInput, customAddBtn, customTbody, customCanvas;
+let customClearBtn, customResetBtn, customExportBtn, customCountBadge, customDimensionBadge;
+
+function initCustomPlannerPage() {
+    customSearchInput = document.getElementById('custom-plant-search');
+    customSelectInput = document.getElementById('custom-plant-select');
+    customAddBtn = document.getElementById('btn-custom-add-plant');
+    customTbody = document.getElementById('custom-table-body');
+    customCanvas = document.getElementById('custom-planner-canvas');
+    customClearBtn = document.getElementById('btn-custom-clear');
+    customResetBtn = document.getElementById('btn-custom-reset-concept');
+    customExportBtn = document.getElementById('btn-export-custom-planner');
+    customCountBadge = document.getElementById('custom-count-badge');
+    customDimensionBadge = document.getElementById('custom-dimension-badge');
+
+    if (!customCanvas) return;
+
+    // Search and Autocomplete handler
+    if (customSearchInput) {
+        customSearchInput.addEventListener('input', updateCustomPlantSelect);
+        updateCustomPlantSelect(); // Initial populate
+    }
+
+    // Add Plant Button handler
+    if (customAddBtn) {
+        customAddBtn.addEventListener('click', () => {
+            if (!customSelectInput || !customSelectInput.value) {
+                alert('Please select a plant from the dropdown list first.');
+                return;
+            }
+            const data = JSON.parse(customSelectInput.value);
+            
+            // Determine unique symbol letter (A-Z)
+            const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const existingSymbols = state.customPlants.map(p => p.symbol);
+            let nextSymbol = 'A';
+            for (let i = 0; i < letters.length; i++) {
+                if (!existingSymbols.includes(letters[i])) {
+                    nextSymbol = letters[i];
+                    break;
+                }
+            }
+            
+            // Assign a custom color
+            const colorsPreset = ["#ef4444", "#3b82f6", "#10b981", "#eab308", "#ec4899", "#8b5cf6", "#f97316"];
+            const nextColor = colorsPreset[state.customPlants.length % colorsPreset.length];
+            
+            const newPlant = {
+                symbol: nextSymbol,
+                color: nextColor,
+                genus: data.genus,
+                species: data.species,
+                name: data.name,
+                height: data.height || "3 ft",
+                quantity: 1,
+                positions: [{ x: 0.5, y: 0.45 }]
+            };
+            
+            state.customPlants.push(newPlant);
+            renderCustomPlanner();
+        });
+    }
+
+    // Clear Layout handler
+    if (customClearBtn) {
+        customClearBtn.addEventListener('click', () => {
+            state.customPlants = [];
+            renderCustomPlanner();
+        });
+    }
+
+    // Load presets Concept handler
+    if (customResetBtn) {
+        customResetBtn.addEventListener('click', () => {
+            loadCustomLayoutFromActiveConcept();
+        });
+    }
+
+    // Export Layout PNG handler
+    if (customExportBtn) {
+        customExportBtn.addEventListener('click', () => {
+            const url = customCanvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `LandscapePro_custom_garden_layout_blueprint.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+    }
+
+    // Drag-and-Drop canvas mouse events
+    let isDragging = false;
+    let draggedItem = null; // { plantIndex, posIndex }
+
+    function getMousePos(canvas, evt) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (evt.clientX - rect.left) * scaleX,
+            y: (evt.clientY - rect.top) * scaleY
+        };
+    }
+
+    customCanvas.addEventListener('mousedown', (e) => {
+        const pos = getMousePos(customCanvas, e);
+        const w = customCanvas.width;
+        const h = customCanvas.height;
+
+        for (let i = 0; i < state.customPlants.length; i++) {
+            const plant = state.customPlants[i];
+            const r = plant.positions.length > 5 ? 16 : 24;
+            for (let j = 0; j < plant.positions.length; j++) {
+                const pPos = plant.positions[j];
+                const px = pPos.x * w;
+                const py = pPos.y * h;
+
+                const dist = Math.hypot(pos.x - px, pos.y - py);
+                if (dist <= r) {
+                    isDragging = true;
+                    draggedItem = { plantIndex: i, posIndex: j };
+                    customCanvas.classList.add('dragging');
+                    return;
+                }
+            }
+        }
+    });
+
+    customCanvas.addEventListener('mousemove', (e) => {
+        if (isDragging && draggedItem !== null) {
+            const pos = getMousePos(customCanvas, e);
+            const w = customCanvas.width;
+            const h = customCanvas.height;
+
+            const plant = state.customPlants[draggedItem.plantIndex];
+            // Clamp within boundary (0.05 to 0.95 margins)
+            const nx = Math.min(0.95, Math.max(0.05, pos.x / w));
+            const ny = Math.min(0.95, Math.max(0.05, pos.y / h));
+
+            plant.positions[draggedItem.posIndex] = { x: nx, y: ny };
+            drawCustomCanvas();
+        }
+    });
+
+    customCanvas.addEventListener('mouseup', () => {
+        isDragging = false;
+        draggedItem = null;
+        customCanvas.classList.remove('dragging');
+    });
+
+    customCanvas.addEventListener('mouseleave', () => {
+        isDragging = false;
+        draggedItem = null;
+        customCanvas.classList.remove('dragging');
+    });
+
+    // Touch support for mobile dragging
+    customCanvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousedown", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            customCanvas.dispatchEvent(mouseEvent);
+        }
+    }, { passive: true });
+
+    customCanvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousemove", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            customCanvas.dispatchEvent(mouseEvent);
+        }
+    }, { passive: true });
+
+    customCanvas.addEventListener('touchend', () => {
+        const mouseEvent = new MouseEvent("mouseup", {});
+        customCanvas.dispatchEvent(mouseEvent);
+    }, { passive: true });
+}
+
+function updateCustomPlantSelect() {
+    if (!customSearchInput || !customSelectInput) return;
+    const query = customSearchInput.value.toLowerCase().trim();
+    customSelectInput.innerHTML = '<option value="" disabled selected>Select a plant to add...</option>';
+
+    let count = 0;
+    for (const plant of PLANTS_DATA) {
+        const fullName = `${plant.genus} ${plant.species} (${plant.name})`;
+        if (!query || fullName.toLowerCase().includes(query)) {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ genus: plant.genus, species: plant.species, name: plant.name, height: plant.height });
+            opt.textContent = `${plant.genus} ${plant.species} - ${plant.name}`;
+            customSelectInput.appendChild(opt);
+            count++;
+            if (count >= 150) break;
+        }
+    }
+}
+
+function loadCustomLayoutFromActiveConcept() {
+    const model = getPlacementModel();
+    state.customPlants = model.schedule.map(group => {
+        return {
+            symbol: group.symbol,
+            color: group.color,
+            genus: group.genus,
+            species: group.species,
+            name: group.name,
+            height: group.height,
+            quantity: group.quantity,
+            positions: group.positions.map(p => ({ x: p.x, y: p.y }))
+        };
+    });
+    renderCustomPlanner();
+}
+
+function renderCustomPlanner() {
+    if (!customTbody) return;
+
+    // Dimension badge
+    const lengthVal = areaLengthInput ? areaLengthInput.value : 20;
+    const widthVal = areaWidthInput ? areaWidthInput.value : 15;
+    if (customDimensionBadge) {
+        customDimensionBadge.textContent = `${lengthVal}' x ${widthVal}' Grid`;
+    }
+
+    // Count badge
+    let total = 0;
+    state.customPlants.forEach(p => total += parseInt(p.quantity) || 0);
+    if (customCountBadge) {
+        customCountBadge.textContent = `${total} Plants`;
+    }
+
+    customTbody.innerHTML = '';
+    if (state.customPlants.length === 0) {
+        customTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No plants in custom layout. Select a plant above and click Add.</td></tr>`;
+    } else {
+        state.customPlants.forEach((plant, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <span class="plant-key-badge" style="background-color: ${plant.color};">
+                        ${plant.symbol}
+                    </span>
+                </td>
+                <td style="font-style: italic; font-weight: 500;">
+                    ${plant.genus} ${plant.species}<br>
+                    <span style="font-size: 10px; font-style: normal; color: var(--text-muted);">${plant.name}</span>
+                </td>
+                <td>
+                    <input type="number" min="1" max="50" class="custom-input-qty" value="${plant.quantity}" data-index="${index}">
+                </td>
+                <td>
+                    <input type="color" class="custom-color-picker" value="${plant.color}" data-index="${index}">
+                </td>
+                <td>
+                    <button class="btn btn-secondary btn-custom-remove" data-index="${index}" style="padding: 2px 6px; font-size: 10px; color: #ef4444; border-color: rgba(239, 68, 68, 0.2);">
+                        Remove
+                      </button>
+                </td>
+            `;
+            customTbody.appendChild(tr);
+        });
+
+        // Event listeners inside dynamic custom table
+        customTbody.querySelectorAll('.custom-input-qty').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                const newQty = Math.max(1, parseInt(e.target.value) || 1);
+                updateCustomPlantQuantity(idx, newQty);
+            });
+        });
+
+        customTbody.querySelectorAll('.custom-color-picker').forEach(picker => {
+            picker.addEventListener('input', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                state.customPlants[idx].color = e.target.value;
+                const badge = e.target.closest('tr').querySelector('.plant-key-badge');
+                if (badge) badge.style.backgroundColor = e.target.value;
+                drawCustomCanvas();
+            });
+        });
+
+        customTbody.querySelectorAll('.btn-custom-remove').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.dataset.index);
+                state.customPlants.splice(idx, 1);
+                const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                state.customPlants.forEach((p, i) => {
+                    p.symbol = letters[i % letters.length];
+                });
+                renderCustomPlanner();
+            });
+        });
+    }
+
+    drawCustomCanvas();
+}
+
+function updateCustomPlantQuantity(idx, newQty) {
+    const plant = state.customPlants[idx];
+    const diff = newQty - plant.quantity;
+    if (diff > 0) {
+        for (let i = 0; i < diff; i++) {
+            plant.positions.push({
+                x: 0.3 + Math.random() * 0.4,
+                y: 0.3 + Math.random() * 0.3
+            });
+        }
+    } else if (diff < 0) {
+        plant.positions.splice(diff);
+    }
+    plant.quantity = newQty;
+
+    let total = 0;
+    state.customPlants.forEach(p => total += parseInt(p.quantity) || 0);
+    if (customCountBadge) {
+        customCountBadge.textContent = `${total} Plants`;
+    }
+
+    drawCustomCanvas();
+}
+
+function drawCustomCanvas() {
+    if (!customCanvas) return;
+    const ctx = customCanvas.getContext('2d');
+    
+    customCanvas.width = 800;
+    customCanvas.height = 600;
+    const w = customCanvas.width;
+    const h = customCanvas.height;
+    
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    
+    const gridCols = parseInt(areaLengthInput ? areaLengthInput.value : 20) || 20;
+    const gridRows = parseInt(areaWidthInput ? areaWidthInput.value : 15) || 15;
+    
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.05)";
+    ctx.lineWidth = 1;
+    for (let c = 0; c <= gridCols; c++) {
+        const x = (w / gridCols) * c;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+    }
+    for (let r = 0; r <= gridRows; r++) {
+        const y = (h / gridRows) * r;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+    }
+    
+    // Mulch bed zone
+    ctx.fillStyle = "rgba(251, 191, 36, 0.08)";
+    ctx.strokeStyle = "rgba(217, 119, 6, 0.25)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.1);
+    ctx.bezierCurveTo(w * 0.3, h * 0.25, w * 0.7, h * 0.15, w, h * 0.35);
+    ctx.lineTo(w, h * 0.85);
+    ctx.bezierCurveTo(w * 0.7, h * 0.75, w * 0.3, h * 0.85, 0, h * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    
+    // Turf Grass
+    ctx.fillStyle = "rgba(74, 222, 128, 0.07)";
+    ctx.beginPath();
+    ctx.arc(w * 0.5, h * 0.5, 120, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Patio Deck
+    ctx.fillStyle = "rgba(241, 245, 249, 0.85)";
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(0, h * 0.75, w * 0.25, h * 0.25);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Structure Border
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(10, 10, w - 20, h - 20);
+    
+    // Boundary text labels
+    ctx.fillStyle = "#475569";
+    ctx.font = "bold 10px monospace";
+    ctx.fillText("STRUCTURE BOUNDARY", 20, 25);
+    ctx.fillText("PATIO DECK", 20, h - 20);
+    ctx.fillText("MULCH BED ZONE", w * 0.4, h * 0.2);
+    ctx.fillText("TURF GRASS", w * 0.47, h * 0.52);
+    
+    // Draw plant symbols based on plant type
+    state.customPlants.forEach(group => {
+        const heightStr = group.height || "3 ft";
+        const hMax = parseInt(heightStr.split('-')[1] || heightStr) || 3;
+        let type = 'perennial';
+        if (hMax > 15) type = 'tree';
+        else if (hMax > 5) type = 'shrub';
+        
+        group.positions.forEach(pos => {
+            const px = pos.x * w;
+            const py = pos.y * h;
+            const r = group.positions.length > 5 ? 16 : 24;
+            
+            ctx.fillStyle = group.color + "1a"; 
+            ctx.strokeStyle = group.color;
+            ctx.lineWidth = 1.8;
+            
+            if (type === 'tree') {
+                ctx.beginPath();
+                ctx.arc(px, py, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(px, py, r * 0.35, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                const numSpokes = 8;
+                for (let i = 0; i < numSpokes; i++) {
+                    const angle = (i / numSpokes) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(px + Math.cos(angle) * (r * 0.35), py + Math.sin(angle) * (r * 0.35));
+                    ctx.lineTo(px + Math.cos(angle) * r, py + Math.sin(angle) * r);
+                    ctx.stroke();
+                }
+            } else if (type === 'shrub') {
+                drawScallopedCircle(ctx, px, py, r, 8);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(px, py, r * 0.45, 0, Math.PI * 2);
+                ctx.stroke();
+            } else {
+                drawSpikyCircle(ctx, px, py, r, 8);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(px, py, r * 0.3, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 11px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(group.symbol, px, py);
+        });
     });
 }
 
