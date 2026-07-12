@@ -131,6 +131,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initSettingsDirtyListeners();
     initReportPage();
     initAiCredentials();
+    initPlacementExport();
     
     // Load default demo space
     loadDemoSpace();
@@ -860,6 +861,9 @@ function updateActiveVisualization() {
     
     // Update descriptions
     updateConceptLabels();
+    
+    // Regenerate placement diagram and plant schedule to match concept/filters
+    renderPlacementPage();
 }
 
 function updateConceptLabels() {
@@ -3956,11 +3960,17 @@ function getCombinedPhRangeText(plant) {
 // Global initialization of Report Page
 function initReportPage() {
     const tabDesigner = document.getElementById('tab-designer');
+    const tabPlacement = document.getElementById('tab-placement');
     const tabReport = document.getElementById('tab-report');
+    
     const designerWorkspace = document.getElementById('designer-workspace');
+    const placementWorkspace = document.getElementById('placement-workspace');
     const reportWorkspace = document.getElementById('report-workspace');
+    
     const designerHeaderActions = document.getElementById('designer-header-actions');
+    const placementHeaderActions = document.getElementById('placement-header-actions');
     const reportHeaderActions = document.getElementById('report-header-actions');
+    
     const sidebar = document.querySelector('.sidebar');
     const headerTitle = document.getElementById('header-main-title');
     const headerSub = document.getElementById('header-main-sub');
@@ -3979,24 +3989,59 @@ function initReportPage() {
     // View Toggling logic
     tabDesigner.addEventListener('click', () => {
         tabDesigner.classList.add('active');
+        if (tabPlacement) tabPlacement.classList.remove('active');
         tabReport.classList.remove('active');
+        
         designerWorkspace.classList.remove('hidden');
+        if (placementWorkspace) placementWorkspace.classList.add('hidden');
         reportWorkspace.classList.add('hidden');
+        
         designerHeaderActions.classList.remove('hidden');
+        if (placementHeaderActions) placementHeaderActions.classList.add('hidden');
         reportHeaderActions.classList.add('hidden');
+        
         sidebar.classList.remove('hidden');
         
         headerTitle.textContent = "Garden Canvas";
         headerSub.textContent = "Upload your space and let AI design the perfect landscape.";
     });
 
+    if (tabPlacement) {
+        tabPlacement.addEventListener('click', () => {
+            tabPlacement.classList.add('active');
+            tabDesigner.classList.remove('active');
+            tabReport.classList.remove('active');
+            
+            if (placementWorkspace) placementWorkspace.classList.remove('hidden');
+            designerWorkspace.classList.add('hidden');
+            reportWorkspace.classList.add('hidden');
+            
+            if (placementHeaderActions) placementHeaderActions.classList.remove('hidden');
+            designerHeaderActions.classList.add('hidden');
+            reportHeaderActions.classList.add('hidden');
+            
+            sidebar.classList.add('hidden'); // Hide sidebar for full diagram workspace
+            
+            headerTitle.textContent = "Placement Diagram & Planting Schedule";
+            headerSub.textContent = "A top-down blueprint map showing plant positions and quantities matching the active AI Concept.";
+            
+            renderPlacementPage();
+        });
+    }
+
     tabReport.addEventListener('click', () => {
         tabReport.classList.add('active');
         tabDesigner.classList.remove('active');
-        designerWorkspace.classList.add('hidden');
+        if (tabPlacement) tabPlacement.classList.remove('active');
+        
         reportWorkspace.classList.remove('hidden');
-        designerHeaderActions.classList.add('hidden');
+        designerWorkspace.classList.add('hidden');
+        if (placementWorkspace) placementWorkspace.classList.add('hidden');
+        
         reportHeaderActions.classList.remove('hidden');
+        designerHeaderActions.classList.add('hidden');
+        if (placementHeaderActions) placementHeaderActions.classList.add('hidden');
+        
         sidebar.classList.add('hidden'); // Hide sidebar for full screen spreadsheet
 
         headerTitle.textContent = "US Botanical Plant Report";
@@ -4302,5 +4347,292 @@ function exportReportToCSV() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// -------------------------------------------------------------
+// PLACEMENT DIAGRAM & PLANTING SCHEDULE BLUEPRINT
+// -------------------------------------------------------------
+
+function getPlacementModel() {
+    const soil = soilSelect.value;
+    const acidity = aciditySelect.value;
+    const sun = sunSelect.value;
+    const water = waterSelect.value;
+    const zoneVal = state.currentZone || '7';
+    const parsedZone = parseInt(zoneVal) || 7;
+    const theme = state.activeTheme;
+    const conceptIndex = state.activeConcept || 'concept-1';
+    
+    let candidates = PLANTS_DATA.filter(p => {
+        if (p.zone) {
+            const parts = p.zone.split('-');
+            if (parts.length === 2) {
+                const zMin = parseInt(parts[0]);
+                const zMax = parseInt(parts[1]);
+                if (parsedZone < zMin || parsedZone > zMax) return false;
+            }
+        }
+        
+        const sunLightMap = {
+            'sun_full': 'Full Sun',
+            'sun_partial': 'Partial Shade',
+            'sun_shade': 'Full Shade'
+        };
+        const neededLight = sunLightMap[sun];
+        if (neededLight && p.light && !p.light.includes(neededLight)) return false;
+        
+        const moistureMap = {
+            'water_dry': 'Dry',
+            'water_moist': 'Moist',
+            'water_wet': 'Wet'
+        };
+        const neededMoisture = moistureMap[water];
+        if (neededMoisture && p.moisture && !p.moisture.includes(neededMoisture)) return false;
+        
+        if (acidity === 'strongly_acid' && !p.strongly_acid) return false;
+        if (acidity === 'acid' && !p.acid) return false;
+        if (acidity === 'neutral' && !p.garden) return false;
+        if (acidity === 'alkaline' && !p.alkaline) return false;
+        
+        return true;
+    });
+    
+    if (candidates.length < 3) {
+        candidates = PLANTS_DATA.slice(0, 8);
+    }
+    
+    let seed = theme.charCodeAt(0) + theme.charCodeAt(theme.length - 1);
+    let selectedPlants = [];
+    for (let i = 0; i < 5; i++) {
+        const idx = (seed + i * 7) % candidates.length;
+        const p = candidates[idx];
+        if (p && !selectedPlants.includes(p)) {
+            selectedPlants.push(p);
+        }
+    }
+    if (selectedPlants.length < 3) {
+        selectedPlants = candidates.slice(0, 3);
+    }
+    
+    const colors = ["#ef4444", "#3b82f6", "#10b981", "#eab308", "#ec4899", "#8b5cf6", "#f97316"];
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    
+    let totalQty = 0;
+    const schedule = selectedPlants.map((plant, index) => {
+        const symbol = letters[index % letters.length];
+        const color = colors[index % colors.length];
+        
+        const heightStr = plant.height || "3 ft";
+        const hMax = parseInt(heightStr.split('-')[1] || heightStr) || 3;
+        
+        let type = 'perennial';
+        if (hMax > 15) type = 'tree';
+        else if (hMax > 5) type = 'shrub';
+        
+        let baseQty = 4;
+        if (type === 'tree') baseQty = 1;
+        else if (type === 'shrub') baseQty = 3;
+        else baseQty = 8;
+        
+        if (conceptIndex === 'concept-2') {
+            baseQty = Math.ceil(baseQty * 1.6);
+        } else if (conceptIndex === 'concept-3') {
+            baseQty = Math.max(1, Math.ceil(baseQty * 0.5));
+        }
+        
+        let spacing = "1.5 ft";
+        if (type === 'tree') spacing = "15 ft";
+        else if (type === 'shrub') spacing = "5 ft";
+        
+        totalQty += baseQty;
+        
+        const positions = [];
+        for (let q = 0; q < baseQty; q++) {
+            let yMin = 0.6, yMax = 0.85;
+            if (type === 'tree') {
+                yMin = 0.15; yMax = 0.35;
+            } else if (type === 'shrub') {
+                yMin = 0.35; yMax = 0.6;
+            }
+            
+            const x = 0.15 + (0.7 / Math.max(1, baseQty - 1)) * q + (Math.random() * 0.05 - 0.025);
+            const y = yMin + Math.random() * (yMax - yMin);
+            positions.push({ x: Math.min(0.9, Math.max(0.1, x)), y: Math.min(0.9, Math.max(0.1, y)) });
+        }
+        
+        return {
+            symbol,
+            color,
+            genus: plant.genus,
+            species: plant.species,
+            name: plant.name,
+            quantity: baseQty,
+            spacing,
+            height: plant.height,
+            positions
+        };
+    });
+    
+    return {
+        schedule,
+        totalQty
+    };
+}
+
+function drawPlacementBlueprint(canvas, model) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = 800;
+    canvas.height = 600;
+    const w = canvas.width;
+    const h = canvas.height;
+    
+    ctx.fillStyle = "#090d16";
+    ctx.fillRect(0, 0, w, h);
+    
+    const gridCols = parseInt(areaLengthInput ? areaLengthInput.value : 20) || 20;
+    const gridRows = parseInt(areaWidthInput ? areaWidthInput.value : 15) || 15;
+    
+    ctx.strokeStyle = "rgba(14, 165, 233, 0.08)";
+    ctx.lineWidth = 1;
+    
+    for (let c = 0; c <= gridCols; c++) {
+        const x = (w / gridCols) * c;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+    }
+    for (let r = 0; r <= gridRows; r++) {
+        const y = (h / gridRows) * r;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+    }
+    
+    ctx.fillStyle = "rgba(69, 26, 3, 0.15)";
+    ctx.strokeStyle = "rgba(120, 53, 4, 0.4)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.1);
+    ctx.bezierCurveTo(w * 0.3, h * 0.25, w * 0.7, h * 0.15, w, h * 0.35);
+    ctx.lineTo(w, h * 0.85);
+    ctx.bezierCurveTo(w * 0.7, h * 0.75, w * 0.3, h * 0.85, 0, h * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.fillStyle = "rgba(20, 83, 45, 0.1)";
+    ctx.beginPath();
+    ctx.arc(w * 0.5, h * 0.5, 120, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = "rgba(51, 65, 85, 0.25)";
+    ctx.strokeStyle = "rgba(71, 85, 105, 0.4)";
+    ctx.beginPath();
+    ctx.rect(0, h * 0.75, w * 0.25, h * 0.25);
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(10, 10, w - 20, h - 20);
+    
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "bold 10px monospace";
+    ctx.fillText("STRUCTURE BOUNDARY", 20, 25);
+    ctx.fillText("PATIO DECK", 20, h - 20);
+    ctx.fillText("MULCH BED ZONE", w * 0.4, h * 0.2);
+    ctx.fillText("TURF GRASS", w * 0.47, h * 0.52);
+    
+    model.schedule.forEach(group => {
+        group.positions.forEach(pos => {
+            const px = pos.x * w;
+            const py = pos.y * h;
+            const r = group.positions.length > 5 ? 16 : 24;
+            
+            ctx.fillStyle = group.color + "45";
+            ctx.strokeStyle = group.color;
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.arc(px, py, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 12px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(group.symbol, px, py);
+        });
+    });
+}
+
+function renderPlacementPage() {
+    const canvas = document.getElementById('placement-canvas');
+    const tableBody = document.getElementById('placement-table-body');
+    const dimensionBadge = document.getElementById('placement-dimension-badge');
+    const countBadge = document.getElementById('placement-count-badge');
+    
+    if (!canvas || !tableBody) return;
+    
+    const model = getPlacementModel();
+    
+    const lengthVal = areaLengthInput ? areaLengthInput.value : 20;
+    const widthVal = areaWidthInput ? areaWidthInput.value : 15;
+    if (dimensionBadge) {
+        dimensionBadge.textContent = `${lengthVal}' x ${widthVal}' Grid`;
+    }
+    
+    if (countBadge) {
+        countBadge.textContent = `${model.totalQty} Plants Total`;
+    }
+    
+    drawPlacementBlueprint(canvas, model);
+    
+    tableBody.innerHTML = '';
+    model.schedule.forEach(group => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <span class="plant-key-badge" style="background-color: ${group.color};">
+                    ${group.symbol}
+                </span>
+            </td>
+            <td style="font-family: var(--font-heading); font-weight: 500; font-style: italic;">
+                ${group.genus} ${group.species}
+            </td>
+            <td>${group.name}</td>
+            <td style="font-weight: 600; color: var(--color-primary);">${group.quantity}</td>
+            <td>${group.spacing}</td>
+            <td>${group.height}</td>
+        `;
+        tableBody.appendChild(tr);
+    });
+}
+
+function initPlacementExport() {
+    const btnExportPlacement = document.getElementById('btn-export-placement');
+    if (!btnExportPlacement) return;
+    
+    btnExportPlacement.addEventListener('click', () => {
+        const canvas = document.getElementById('placement-canvas');
+        if (!canvas) return;
+        
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        
+        const theme = state.activeTheme || 'garden';
+        const concept = state.activeConcept || 'concept-1';
+        a.download = `LandscapePro_${theme}_${concept}_planting_blueprint.png`;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    });
 }
 

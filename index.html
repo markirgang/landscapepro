@@ -251,6 +251,7 @@
                         </div>
                         <div class="nav-tabs">
                             <button id="tab-designer" class="nav-tab active">Garden Designer</button>
+                            <button id="tab-placement" class="nav-tab">Placement Diagram</button>
                             <button id="tab-report" class="nav-tab">US Plant Report</button>
                         </div>
                     </div>
@@ -269,6 +270,12 @@
                             Export All
                         </button>
                     </div>
+                </div>
+                <div class="header-right hidden" id="placement-header-actions">
+                    <button id="btn-export-placement" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-left"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Export Diagram Blueprint (PNG)
+                    </button>
                 </div>
                 <div class="header-right hidden" id="report-header-actions">
                     <button id="btn-export-report" class="btn btn-primary">
@@ -409,6 +416,53 @@
                         </div>
                     </div>
                 </section>
+            </div>
+
+            <!-- Placement Container (Hidden by default) -->
+            <div class="placement-workspace hidden" id="placement-workspace">
+                <div class="placement-grid">
+                    <!-- Left: Placement Blueprint Diagram -->
+                    <section class="panel placement-canvas-panel">
+                        <div class="panel-header">
+                            <h3>Landscape Planting Blueprint</h3>
+                            <span class="badge" id="placement-dimension-badge">20' x 15' Grid</span>
+                        </div>
+                        <div class="placement-canvas-wrapper">
+                            <canvas id="placement-canvas"></canvas>
+                        </div>
+                        <div class="placement-legend">
+                            <div class="legend-item"><span class="legend-dot structure"></span> Structure / Fence</div>
+                            <div class="legend-item"><span class="legend-dot path"></span> Patio / Walkway</div>
+                            <div class="legend-item"><span class="legend-dot lawn"></span> Turf / Lawn</div>
+                            <div class="legend-item"><span class="legend-dot bed"></span> Garden Bed Mulch</div>
+                        </div>
+                    </section>
+
+                    <!-- Right: Plant List and Quantities -->
+                    <section class="panel placement-list-panel">
+                        <div class="panel-header">
+                            <h3>Planting Schedule</h3>
+                            <span class="badge badge-emerald" id="placement-count-badge">0 Plants Total</span>
+                        </div>
+                        <div class="placement-table-wrapper">
+                            <table class="placement-table">
+                                <thead>
+                                    <tr>
+                                        <th>Key</th>
+                                        <th>Botanical Name</th>
+                                        <th>Common Name</th>
+                                        <th>Quantity</th>
+                                        <th>Spacing</th>
+                                        <th>Est. Height</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="placement-table-body">
+                                    <!-- Dynamic rows matching current AI image -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
             </div>
 
             <!-- Report Container (Hidden by default) -->
