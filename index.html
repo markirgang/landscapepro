@@ -224,10 +224,18 @@
             <!-- Header bar -->
             <header class="top-header">
                 <div class="header-left">
-                    <h2>Garden Canvas</h2>
-                    <p class="header-sub">Upload your space and let AI design the perfect landscape.</p>
+                    <div class="brand-nav-group">
+                        <div>
+                            <h2 id="header-main-title">Garden Canvas</h2>
+                            <p id="header-main-sub" class="header-sub">Upload your space and let AI design the perfect landscape.</p>
+                        </div>
+                        <div class="nav-tabs">
+                            <button id="tab-designer" class="nav-tab active">Garden Designer</button>
+                            <button id="tab-report" class="nav-tab">US Plant Report</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="header-right">
+                <div class="header-right" id="designer-header-actions">
                     <!-- Export Box -->
                     <div class="export-all-group">
                         <label for="export-format-all" class="sr-only">Format</label>
@@ -242,10 +250,16 @@
                         </button>
                     </div>
                 </div>
+                <div class="header-right hidden" id="report-header-actions">
+                    <button id="btn-export-report" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-left"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Export Spreadsheet (CSV)
+                    </button>
+                </div>
             </header>
 
             <!-- Workspace Grid -->
-            <div class="workspace-grid">
+            <div class="workspace-grid" id="designer-workspace">
                 <!-- Left: Upload and Image Selector -->
                 <section class="panel upload-panel">
                     <div class="panel-header">
@@ -376,6 +390,99 @@
                     </div>
                 </section>
             </div>
+
+            <!-- Report Container (Hidden by default) -->
+            <div class="report-workspace hidden" id="report-workspace">
+                <div class="report-filters-bar">
+                    <div class="report-search-wrapper">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="report-search" placeholder="Search by genus, species, common name or family...">
+                    </div>
+                    <div class="report-filter-selects">
+                        <div class="filter-field">
+                            <label for="filter-ph">Soil pH</label>
+                            <select id="filter-ph" class="input-select">
+                                <option value="any" selected>Any pH</option>
+                                <option value="strongly_acid">Strongly Acid (5.1 - 5.5)</option>
+                                <option value="acid">Acid (5.6 - 6.5)</option>
+                                <option value="garden">Garden (6.6 - 7.3)</option>
+                                <option value="alkaline">Alkaline (7.4 - 8.5)</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="filter-zone">Hardiness Zone</label>
+                            <select id="filter-zone" class="input-select">
+                                <option value="any" selected>Any Zone</option>
+                                <option value="2">Zone 2</option>
+                                <option value="3">Zone 3</option>
+                                <option value="4">Zone 4</option>
+                                <option value="5">Zone 5</option>
+                                <option value="6">Zone 6</option>
+                                <option value="7">Zone 7</option>
+                                <option value="8">Zone 8</option>
+                                <option value="9">Zone 9</option>
+                                <option value="10">Zone 10</option>
+                                <option value="11">Zone 11</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="filter-light">Light</label>
+                            <select id="filter-light" class="input-select">
+                                <option value="any" selected>Any Light</option>
+                                <option value="Full Sun">Full Sun</option>
+                                <option value="Partial Shade">Partial Shade</option>
+                                <option value="Full Shade">Full Shade</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="filter-moisture">Moisture</label>
+                            <select id="filter-moisture" class="input-select">
+                                <option value="any" selected>Any Moisture</option>
+                                <option value="Dry">Dry</option>
+                                <option value="Well-drained">Well-drained</option>
+                                <option value="Moist">Moist</option>
+                                <option value="Wet">Wet</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="filter-edibility">Edibility</label>
+                            <select id="filter-edibility" class="input-select">
+                                <option value="any" selected>Any Edibility</option>
+                                <option value="edible">Edible Plants</option>
+                                <option value="non_edible">Non-Edible Only</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="report-table-wrapper">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Genus</th>
+                                <th>Species</th>
+                                <th>Common Name</th>
+                                <th>Family</th>
+                                <th>Hardiness Zone</th>
+                                <th>Light</th>
+                                <th>Moisture</th>
+                                <th>Root Pattern</th>
+                                <th>Height</th>
+                                <th>Width</th>
+                                <th>Growth Rate</th>
+                                <th>Edibility</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-table-body">
+                            <!-- Dynamic rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="report-footer">
+                    <span id="report-count-label">Showing 0 of 0 plants</span>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -462,6 +569,7 @@
         </div>
     </div>
 
+    <script src="plants_db.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -124,6 +124,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initLinkImport();
     initDimensionsAndSeason();
     initSettingsDirtyListeners();
+    initReportPage();
     
     // Load default demo space
     loadDemoSpace();
@@ -167,8 +168,15 @@ function initLocationControls() {
     });
 }
 
+let lastResolvedAddressText = '';
+
 async function handleAddressUpdate(addressText) {
     addressText = addressText.trim();
+    if (addressText === lastResolvedAddressText) {
+        return;
+    }
+    lastResolvedAddressText = addressText;
+
     if (!addressText) {
         state.currentZip = null;
         state.currentAddress = '';
@@ -219,6 +227,8 @@ async function handleAddressUpdate(addressText) {
     if (formattedAddress !== addressText) {
         addressInput.value = formattedAddress;
     }
+    
+    lastResolvedAddressText = formattedAddress.trim();
 
     updateClimateInfo(finalZip, formattedAddress);
 
@@ -267,6 +277,7 @@ async function triggerGPSLookup() {
             }
 
             addressInput.value = formattedAddress;
+            lastResolvedAddressText = formattedAddress.trim();
             const finalZip = getZipForAddress(formattedAddress, resolvedZip);
             updateClimateInfo(finalZip, formattedAddress);
 
@@ -880,7 +891,10 @@ function updateConceptLabels() {
 // SIMULATED AI GENERATION & CANVAS RENDERING
 // -------------------------------------------------------------
 function initGenerateAction() {
-    btnGenerate.addEventListener('click', () => {
+    btnGenerate.addEventListener('click', async () => {
+        if (addressInput) {
+            await handleAddressUpdate(addressInput.value);
+        }
         triggerAIGeneration();
     });
 }
@@ -3733,3 +3747,391 @@ function initSettingsDirtyListeners() {
         });
     }
 }
+
+// US Botanical Plant Database (Loaded from plants_db.js)
+// PLANTS_DATA is declared globally in plants_db.js
+
+// Helper to calculate combined pH range string
+function getCombinedPhRangeText(plant) {
+    let parts = [];
+    if (plant.strongly_acid) parts.push("strongly acid");
+    if (plant.acid) parts.push("acid");
+    if (plant.garden) parts.push("garden");
+    if (plant.alkaline) parts.push("alkaline");
+    
+    if (parts.length === 0) return "Unknown";
+    if (parts.length === 1) {
+        if (parts[0] === "strongly acid") return "Strongly Acid (5.1-5.5)";
+        if (parts[0] === "acid") return "Acid (5.6-6.5)";
+        if (parts[0] === "garden") return "Garden (6.6-7.3)";
+        if (parts[0] === "alkaline") return "Alkaline (7.4-8.5)";
+    }
+    
+    let minName = parts[0];
+    let maxName = parts[parts.length - 1];
+    
+    let minPh = "5.1";
+    if (minName === "acid") minPh = "5.6";
+    if (minName === "garden") minPh = "6.6";
+    if (minName === "alkaline") minPh = "7.4";
+    
+    let maxPh = "8.5";
+    if (maxName === "strongly acid") maxPh = "5.5";
+    if (maxName === "acid") maxPh = "6.5";
+    if (maxName === "garden") maxPh = "7.3";
+    
+    const cap = s => s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    return `${cap(minName)} to ${cap(maxName)} (${minPh} - ${maxPh})`;
+}
+
+// Global initialization of Report Page
+function initReportPage() {
+    const tabDesigner = document.getElementById('tab-designer');
+    const tabReport = document.getElementById('tab-report');
+    const designerWorkspace = document.getElementById('designer-workspace');
+    const reportWorkspace = document.getElementById('report-workspace');
+    const designerHeaderActions = document.getElementById('designer-header-actions');
+    const reportHeaderActions = document.getElementById('report-header-actions');
+    const sidebar = document.querySelector('.sidebar');
+    const headerTitle = document.getElementById('header-main-title');
+    const headerSub = document.getElementById('header-main-sub');
+
+    // Text inputs and filter fields
+    const reportSearch = document.getElementById('report-search');
+    const filterPh = document.getElementById('filter-ph');
+    const filterZone = document.getElementById('filter-zone');
+    const filterLight = document.getElementById('filter-light');
+    const filterMoisture = document.getElementById('filter-moisture');
+    const filterEdibility = document.getElementById('filter-edibility');
+    const btnExportReport = document.getElementById('btn-export-report');
+
+    if (!tabDesigner || !tabReport || !reportWorkspace) return;
+
+    // View Toggling logic
+    tabDesigner.addEventListener('click', () => {
+        tabDesigner.classList.add('active');
+        tabReport.classList.remove('active');
+        designerWorkspace.classList.remove('hidden');
+        reportWorkspace.classList.add('hidden');
+        designerHeaderActions.classList.remove('hidden');
+        reportHeaderActions.classList.add('hidden');
+        sidebar.classList.remove('hidden');
+        
+        headerTitle.textContent = "Garden Canvas";
+        headerSub.textContent = "Upload your space and let AI design the perfect landscape.";
+    });
+
+    tabReport.addEventListener('click', () => {
+        tabReport.classList.add('active');
+        tabDesigner.classList.remove('active');
+        designerWorkspace.classList.add('hidden');
+        reportWorkspace.classList.remove('hidden');
+        designerHeaderActions.classList.add('hidden');
+        reportHeaderActions.classList.remove('hidden');
+        sidebar.classList.add('hidden'); // Hide sidebar for full screen spreadsheet
+
+        headerTitle.textContent = "US Botanical Plant Report";
+        headerSub.textContent = "A comprehensive database of landscaping and garden plants in the United States.";
+        
+        renderReportTable(); // Trigger render on activation
+    });
+
+    // Add listeners for filters
+    const reportFilters = [reportSearch, filterPh, filterZone, filterLight, filterMoisture, filterEdibility];
+    reportFilters.forEach(f => {
+        if (f) {
+            f.addEventListener('input', renderReportTable);
+            f.addEventListener('change', renderReportTable);
+        }
+    });
+
+    // CSV Exporter
+    if (btnExportReport) {
+        btnExportReport.addEventListener('click', exportReportToCSV);
+    }
+}
+
+// Render filtered plants into table
+function renderReportTable() {
+    const reportSearch = document.getElementById('report-search');
+    const filterPh = document.getElementById('filter-ph');
+    const filterZone = document.getElementById('filter-zone');
+    const filterLight = document.getElementById('filter-light');
+    const filterMoisture = document.getElementById('filter-moisture');
+    const filterEdibility = document.getElementById('filter-edibility');
+    
+    const tbody = document.getElementById('report-table-body');
+    const countLabel = document.getElementById('report-count-label');
+    
+    if (!tbody) return;
+
+    // Get filter states
+    const query = reportSearch.value.trim().toLowerCase();
+    const phVal = filterPh.value;
+    const zoneVal = filterZone.value;
+    const lightVal = filterLight.value;
+    const moistureVal = filterMoisture.value;
+    const edibilityVal = filterEdibility.value;
+
+    // Filter plants
+    const filtered = PLANTS_DATA.filter(plant => {
+        // Text search (genus, species, name, family)
+        if (query) {
+            const matchesQuery = 
+                plant.genus.toLowerCase().includes(query) ||
+                plant.species.toLowerCase().includes(query) ||
+                plant.name.toLowerCase().includes(query) ||
+                plant.family.toLowerCase().includes(query);
+            if (!matchesQuery) return false;
+        }
+
+        // Soil pH filter
+        if (phVal !== 'any') {
+            if (phVal === 'strongly_acid' && !plant.strongly_acid) return false;
+            if (phVal === 'acid' && !plant.acid) return false;
+            if (phVal === 'garden' && !plant.garden) return false;
+            if (phVal === 'alkaline' && !plant.alkaline) return false;
+        }
+
+        // Hardiness Zone filter
+        if (zoneVal !== 'any') {
+            const zNum = parseInt(zoneVal);
+            // Parse zone range "X-Y"
+            const match = plant.zone.match(/(\d+)\s*-\s*(\d+)/);
+            if (match) {
+                const minZ = parseInt(match[1]);
+                const maxZ = parseInt(match[2]);
+                if (zNum < minZ || zNum > maxZ) return false;
+            } else {
+                // Single zone check
+                const singleZ = parseInt(plant.zone);
+                if (singleZ !== zNum) return false;
+            }
+        }
+
+        // Light exposure filter (partial match e.g. "Full Sun, Partial Shade")
+        if (lightVal !== 'any') {
+            if (!plant.light.includes(lightVal)) return false;
+        }
+
+        // Moisture filter
+        if (moistureVal !== 'any') {
+            if (!plant.moisture.includes(moistureVal)) return false;
+        }
+
+        // Edibility filter
+        if (edibilityVal !== 'any') {
+            const isEdible = plant.edible && plant.edible.toLowerCase() !== 'none';
+            if (edibilityVal === 'edible' && !isEdible) return false;
+            if (edibilityVal === 'non_edible' && isEdible) return false;
+        }
+
+        return true;
+    });
+
+    // Clear and build tbody
+    tbody.innerHTML = '';
+    
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--text-muted); padding: 30px;">No matching plants found in the database.</td></tr>`;
+        countLabel.textContent = `Showing 0 of ${PLANTS_DATA.length} plants`;
+        return;
+    }
+
+    filtered.forEach(plant => {
+        const tr = document.createElement('tr');
+        
+        // Genus
+        const tdGenus = document.createElement('td');
+        tdGenus.style.fontStyle = 'italic';
+        tdGenus.textContent = plant.genus;
+        tr.appendChild(tdGenus);
+
+        // Species
+        const tdSpecies = document.createElement('td');
+        tdSpecies.style.fontStyle = 'italic';
+        tdSpecies.textContent = plant.species;
+        tr.appendChild(tdSpecies);
+
+        // Common Name
+        const tdName = document.createElement('td');
+        tdName.style.fontWeight = '500';
+        tdName.textContent = plant.name;
+        tr.appendChild(tdName);
+
+        // Family
+        const tdFamily = document.createElement('td');
+        tdFamily.textContent = plant.family;
+        tr.appendChild(tdFamily);
+
+        // Hardiness Zone
+        const tdZone = document.createElement('td');
+        tdZone.innerHTML = `<span class="badge-zone">Zone ${plant.zone}</span>`;
+        tr.appendChild(tdZone);
+
+        // Light
+        const tdLight = document.createElement('td');
+        tdLight.innerHTML = plant.light.split(', ').map(l => `<span class="badge-light">${l}</span>`).join(' ');
+        tr.appendChild(tdLight);
+
+        // Moisture
+        const tdMoisture = document.createElement('td');
+        tdMoisture.innerHTML = plant.moisture.split(', ').map(m => `<span class="badge-moisture">${m}</span>`).join(' ');
+        tr.appendChild(tdMoisture);
+
+        // Root Pattern
+        const tdRoot = document.createElement('td');
+        tdRoot.textContent = plant.root;
+        tr.appendChild(tdRoot);
+
+        // Height
+        const tdHeight = document.createElement('td');
+        tdHeight.textContent = plant.height;
+        tr.appendChild(tdHeight);
+
+        // Width
+        const tdWidth = document.createElement('td');
+        tdWidth.textContent = plant.width;
+        tr.appendChild(tdWidth);
+
+        // Growth Rate
+        const tdGrowth = document.createElement('td');
+        tdGrowth.textContent = plant.growth;
+        tr.appendChild(tdGrowth);
+
+        // Edibility
+        const tdEdible = document.createElement('td');
+        if (plant.edible && plant.edible.toLowerCase() !== 'none') {
+            tdEdible.innerHTML = `<span class="badge-edible" title="Edible Parts">${plant.edible}</span>`;
+        } else {
+            tdEdible.innerHTML = `<span class="badge-none">Non-edible</span>`;
+        }
+        tr.appendChild(tdEdible);
+
+        tbody.appendChild(tr);
+    });
+
+    countLabel.textContent = `Showing ${filtered.length} of ${PLANTS_DATA.length} plants`;
+}
+
+// Compiled CSV export function (RFC-4180 compliant)
+function exportReportToCSV() {
+    const reportSearch = document.getElementById('report-search');
+    const filterPh = document.getElementById('filter-ph');
+    const filterZone = document.getElementById('filter-zone');
+    const filterLight = document.getElementById('filter-light');
+    const filterMoisture = document.getElementById('filter-moisture');
+    const filterEdibility = document.getElementById('filter-edibility');
+
+    const query = reportSearch.value.trim().toLowerCase();
+    const phVal = filterPh.value;
+    const zoneVal = filterZone.value;
+    const lightVal = filterLight.value;
+    const moistureVal = filterMoisture.value;
+    const edibilityVal = filterEdibility.value;
+
+    const filtered = PLANTS_DATA.filter(plant => {
+        if (query) {
+            const matchesQuery = 
+                plant.genus.toLowerCase().includes(query) ||
+                plant.species.toLowerCase().includes(query) ||
+                plant.name.toLowerCase().includes(query) ||
+                plant.family.toLowerCase().includes(query);
+            if (!matchesQuery) return false;
+        }
+
+        if (phVal !== 'any') {
+            if (phVal === 'strongly_acid' && !plant.strongly_acid) return false;
+            if (phVal === 'acid' && !plant.acid) return false;
+            if (phVal === 'garden' && !plant.garden) return false;
+            if (phVal === 'alkaline' && !plant.alkaline) return false;
+        }
+
+        if (zoneVal !== 'any') {
+            const zNum = parseInt(zoneVal);
+            const match = plant.zone.match(/(\d+)\s*-\s*(\d+)/);
+            if (match) {
+                const minZ = parseInt(match[1]);
+                const maxZ = parseInt(match[2]);
+                if (zNum < minZ || zNum > maxZ) return false;
+            } else {
+                const singleZ = parseInt(plant.zone);
+                if (singleZ !== zNum) return false;
+            }
+        }
+
+        if (lightVal !== 'any' && !plant.light.includes(lightVal)) return false;
+        if (moistureVal !== 'any' && !plant.moisture.includes(moistureVal)) return false;
+
+        if (edibilityVal !== 'any') {
+            const isEdible = plant.edible && plant.edible.toLowerCase() !== 'none';
+            if (edibilityVal === 'edible' && !isEdible) return false;
+            if (edibilityVal === 'non_edible' && isEdible) return false;
+        }
+
+        return true;
+    });
+
+    const headers = [
+        "Genus",
+        "Species",
+        "Common Name",
+        "Family",
+        "Hardiness Zone",
+        "Soil pH Range",
+        "Light",
+        "Moisture",
+        "Root Pattern",
+        "Height",
+        "Width",
+        "Growth Rate",
+        "Edibility"
+    ];
+
+    const escapeCSV = val => {
+        if (val === undefined || val === null) return "";
+        const strVal = String(val);
+        if (strVal.includes(",") || strVal.includes("\"") || strVal.includes("\n")) {
+            return `"${strVal.replace(/"/g, '""')}"`;
+        }
+        return strVal;
+    };
+
+    let csvContent = headers.map(escapeCSV).join(",") + "\r\n";
+
+    filtered.forEach(plant => {
+        const row = [
+            plant.genus,
+            plant.species,
+            plant.name,
+            plant.family,
+            plant.zone,
+            getCombinedPhRangeText(plant),
+            plant.light,
+            plant.moisture,
+            plant.root,
+            plant.height,
+            plant.width,
+            plant.growth,
+            plant.edible
+        ];
+        csvContent += row.map(escapeCSV).join(",") + "\r\n";
+    });
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    
+    let filterString = "";
+    if (phVal !== 'any') filterString += `_ph_${phVal}`;
+    if (zoneVal !== 'any') filterString += `_zone_${zoneVal}`;
+    if (query) filterString += `_search_${query.substring(0, 10).replace(/[^a-z0-9]/gi, '_')}`;
+    
+    link.setAttribute("download", `us_botanical_report${filterString}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
