@@ -3995,6 +3995,7 @@ function initReportPage() {
     const filterMoisture = document.getElementById('filter-moisture');
     const filterEdibility = document.getElementById('filter-edibility');
     const btnExportReport = document.getElementById('btn-export-report');
+    const btnAutofillReport = document.getElementById('btn-autofill-report');
 
     const tabCustomPlanner = document.getElementById('tab-custom-planner');
     const customPlannerWorkspace = document.getElementById('custom-planner-workspace');
@@ -4119,6 +4120,104 @@ function initReportPage() {
     if (btnExportReport) {
         btnExportReport.addEventListener('click', exportReportToCSV);
     }
+
+    // Auto-Fill report filters based on canvas settings
+    if (btnAutofillReport) {
+        btnAutofillReport.addEventListener('click', () => {
+            // 1. Soil pH mapping
+            const acidity = aciditySelect ? aciditySelect.value : 'neutral';
+            if (acidity === 'neutral') {
+                filterPh.value = 'garden';
+            } else if (acidity === 'acidic') {
+                filterPh.value = 'acid';
+            } else if (acidity === 'alkaline') {
+                filterPh.value = 'alkaline';
+            } else {
+                filterPh.value = 'any';
+            }
+
+            // 2. Hardiness Zone mapping
+            let zoneVal = 'any';
+            if (state.currentZone) {
+                const match = String(state.currentZone).match(/\d+/);
+                if (match) {
+                    const zoneNum = parseInt(match[0]);
+                    if (zoneNum >= 2 && zoneNum <= 11) {
+                        zoneVal = String(zoneNum);
+                    }
+                }
+            } else {
+                // Fallback: see if climateBadge has a parsed zone
+                const badgeText = climateBadge ? climateBadge.textContent : '';
+                const match = badgeText.match(/\d+/);
+                if (match) {
+                    const zoneNum = parseInt(match[0]);
+                    if (zoneNum >= 2 && zoneNum <= 11) {
+                        zoneVal = String(zoneNum);
+                    }
+                }
+            }
+            filterZone.value = zoneVal;
+
+            // 3. Sun/Light mapping
+            const sunVal = sunSelect ? sunSelect.value : 'full-sun';
+            if (sunVal === 'full-sun' || sunVal === 'hot-afternoon') {
+                filterLight.value = 'Full Sun';
+            } else if (sunVal === 'dappled-sun' || sunVal === 'partial-shade') {
+                filterLight.value = 'Partial Shade';
+            } else if (sunVal === 'full-shade' || sunVal === 'deep-shade') {
+                filterLight.value = 'Full Shade';
+            } else {
+                filterLight.value = 'any';
+            }
+
+            // 4. Moisture mapping
+            const moistureVal = waterSelect ? waterSelect.value : 'well-drained';
+            if (moistureVal === 'well-drained' || moistureVal === 'seasonally-wet') {
+                filterMoisture.value = 'Well-drained';
+            } else if (moistureVal === 'dry') {
+                filterMoisture.value = 'Dry';
+            } else if (moistureVal === 'moist') {
+                filterMoisture.value = 'Moist';
+            } else if (moistureVal === 'wet' || moistureVal === 'flood-prone') {
+                filterMoisture.value = 'Wet';
+            } else {
+                filterMoisture.value = 'any';
+            }
+
+            // 5. Edibility (always any)
+            filterEdibility.value = 'any';
+
+            // Trigger re-rendering of table
+            renderReportTable();
+
+            // Button micro-interaction: brief success state styling or feedback
+            const originalHTML = btnAutofillReport.innerHTML;
+            btnAutofillReport.style.borderColor = 'var(--color-primary)';
+            btnAutofillReport.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+            btnAutofillReport.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="color: var(--color-primary);"><polyline points="20 6 9 17 4 12"/></svg>
+                Auto-Filled!
+            `;
+            setTimeout(() => {
+                btnAutofillReport.style.borderColor = '';
+                btnAutofillReport.style.backgroundColor = '';
+                btnAutofillReport.innerHTML = originalHTML;
+            }, 1000);
+        });
+    }
+
+    // Set up table wrapper mouseleave event to revert preview card to selected row
+    const reportTableWrapper = reportWorkspace.querySelector('.report-table-wrapper');
+    if (reportTableWrapper) {
+        reportTableWrapper.addEventListener('mouseleave', () => {
+            if (lockedReportPlant) {
+                updatePlantDetailCard(lockedReportPlant);
+            } else {
+                clearPlantDetailCard();
+            }
+        });
+    }
 }
 
 // Render filtered plants into table
@@ -4134,6 +4233,10 @@ function renderReportTable() {
     const countLabel = document.getElementById('report-count-label');
     
     if (!tbody) return;
+
+    // Reset details selection
+    lockedReportPlant = null;
+    clearPlantDetailCard();
 
     // Get filter states
     const query = reportSearch.value.trim().toLowerCase();
@@ -4277,6 +4380,33 @@ function renderReportTable() {
             tdEdible.innerHTML = `<span class="badge-none">Non-edible</span>`;
         }
         tr.appendChild(tdEdible);
+
+        // Hover & Selection interactions
+        tr.tabIndex = 0; // Make focusable via keyboard
+        
+        tr.addEventListener('mouseenter', () => {
+            updatePlantDetailCard(plant);
+        });
+        
+        tr.addEventListener('focus', () => {
+            updatePlantDetailCard(plant);
+        });
+
+        const selectRow = () => {
+            lockedReportPlant = plant;
+            tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected-row'));
+            tr.classList.add('selected-row');
+            updatePlantDetailCard(plant);
+        };
+
+        tr.addEventListener('click', selectRow);
+        
+        tr.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectRow();
+            }
+        });
 
         tbody.appendChild(tr);
     });
@@ -5245,5 +5375,131 @@ function drawCustomCanvas() {
             ctx.fillText(group.symbol, px, py);
         });
     });
+}
+
+// Global selected plant state for report page
+let lockedReportPlant = null;
+
+// Function to update the Selected Plant Details card
+function updatePlantDetailCard(plant) {
+    const card = document.getElementById('report-detail-card');
+    if (!card) return;
+    
+    const commonNameEl = document.getElementById('detail-common-name');
+    const scientificNameEl = document.getElementById('detail-scientific-name');
+    const familyEl = document.getElementById('detail-family');
+    
+    const specZoneEl = document.getElementById('detail-spec-zone');
+    const specLightEl = document.getElementById('detail-spec-light');
+    const specMoistureEl = document.getElementById('detail-spec-moisture');
+    const specGrowthEl = document.getElementById('detail-spec-growth');
+    
+    const plantImg = document.getElementById('detail-plant-image');
+    const placeholder = document.getElementById('detail-plant-placeholder');
+    
+    if (!plant) {
+        clearPlantDetailCard();
+        return;
+    }
+    
+    // Set text contents
+    commonNameEl.textContent = plant.name;
+    scientificNameEl.textContent = `${plant.genus} ${plant.species}`;
+    familyEl.textContent = `(${plant.family})`;
+    
+    specZoneEl.textContent = `Zone ${plant.zone}`;
+    specLightEl.textContent = plant.light;
+    specMoistureEl.textContent = plant.moisture;
+    specGrowthEl.textContent = plant.growth;
+    
+    // Set image
+    const imgUrl = getPlantImageUrl(plant);
+    if (imgUrl) {
+        plantImg.src = imgUrl;
+        plantImg.alt = plant.name;
+        plantImg.classList.remove('hidden');
+        placeholder.style.display = 'none';
+    } else {
+        plantImg.classList.add('hidden');
+        placeholder.style.display = 'flex';
+    }
+}
+
+// Function to clear details card
+function clearPlantDetailCard() {
+    const commonNameEl = document.getElementById('detail-common-name');
+    const scientificNameEl = document.getElementById('detail-scientific-name');
+    const familyEl = document.getElementById('detail-family');
+    
+    const specZoneEl = document.getElementById('detail-spec-zone');
+    const specLightEl = document.getElementById('detail-spec-light');
+    const specMoistureEl = document.getElementById('detail-spec-moisture');
+    const specGrowthEl = document.getElementById('detail-spec-growth');
+    
+    const plantImg = document.getElementById('detail-plant-image');
+    const placeholder = document.getElementById('detail-plant-placeholder');
+    
+    if (!commonNameEl) return; // Guard for pages that don't have the card
+    
+    commonNameEl.textContent = "Select a plant from the list below";
+    scientificNameEl.textContent = "--";
+    familyEl.textContent = "--";
+    
+    specZoneEl.textContent = "--";
+    specLightEl.textContent = "--";
+    specMoistureEl.textContent = "--";
+    specGrowthEl.textContent = "--";
+    
+    plantImg.classList.add('hidden');
+    plantImg.src = "";
+    placeholder.style.display = 'flex';
+}
+
+// Helper to resolve high quality plant image URL matching the plant
+function getPlantImageUrl(plant) {
+    const name = plant.name.toLowerCase();
+    const genus = plant.genus.toLowerCase();
+    const family = plant.family.toLowerCase();
+    
+    // Curated local mappings first
+    if (name.includes('rose') || genus.includes('rosa')) return 'assets/plants/rose_bush.png';
+    if (name.includes('lavender') || genus.includes('lavandula')) return 'assets/plants/lavender.png';
+    if (name.includes('fern') || genus.includes('dryopteris') || genus.includes('athyrium')) return 'assets/plants/fern.png';
+    if (name.includes('grass') || genus.includes('fescue') || genus.includes('carex') || genus.includes('pennisetum')) return 'assets/plants/grass.png';
+    if (name.includes('hosta')) return 'assets/plants/hosta.png';
+    if (name.includes('hydrangea')) return 'assets/plants/hydrangea.png';
+    if (name.includes('agave') || name.includes('cactus') || name.includes('succulent') || genus.includes('sedum') || genus.includes('sempervivum')) return 'assets/plants/agave.png';
+    if (name.includes('boxwood') || name.includes('shrub') || name.includes('hedge') || genus.includes('buxus')) return 'assets/plants/boxwood.png';
+    
+    // Web fallback URLs (premium Unsplash plant photography)
+    if (family.includes('pinaceae') || family.includes('cupressaceae') || name.includes('pine') || name.includes('cedar') || name.includes('spruce') || name.includes('juniper')) {
+        return 'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=400&q=80'; // Pine/Evergreen
+    }
+    if (name.includes('maple') || genus.includes('acer') || name.includes('oak') || name.includes('birch') || name.includes('tree')) {
+        return 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80'; // Trees
+    }
+    if (name.includes('flower') || name.includes('daisy') || name.includes('lily') || name.includes('poppy') || name.includes('marigold')) {
+        return 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=400&q=80'; // Flowers
+    }
+    if (name.includes('ivy') || name.includes('vine') || genus.includes('clematis') || genus.includes('wisteria')) {
+        return 'https://images.unsplash.com/photo-1481137354171-15977875d60d?auto=format&fit=crop&w=400&q=80'; // Ivy/Climber
+    }
+    
+    // Curated list of Unsplash fallbacks based on plant genus & name hash
+    const fallbacks = [
+        'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=400&q=80',
+        'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80',
+        'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=400&q=80',
+        'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=400&q=80',
+        'https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?auto=format&fit=crop&w=400&q=80',
+        'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80'
+    ];
+    let hash = 0;
+    const str = genus + name;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const idx = Math.abs(hash) % fallbacks.length;
+    return fallbacks[idx];
 }
 

@@ -467,10 +467,41 @@
 
             <!-- Report Container (Hidden by default) -->
             <div class="report-workspace hidden" id="report-workspace">
+                <!-- Selected Plant Details Card -->
+                <div class="report-detail-card" id="report-detail-card">
+                    <div class="detail-info-pane">
+                        <div class="detail-subtitle">Selected Plant Specimen</div>
+                        <h2 id="detail-common-name" class="detail-title">Select a plant from the list below</h2>
+                        <div class="detail-meta">
+                            <span id="detail-scientific-name" class="detail-scientific">--</span>
+                            <span id="detail-family" class="detail-family">--</span>
+                        </div>
+                        <div class="detail-specs-grid">
+                            <div class="detail-spec"><span class="spec-label">Zone:</span> <span id="detail-spec-zone">--</span></div>
+                            <div class="detail-spec"><span class="spec-label">Light:</span> <span id="detail-spec-light">--</span></div>
+                            <div class="detail-spec"><span class="spec-label">Moisture:</span> <span id="detail-spec-moisture">--</span></div>
+                            <div class="detail-spec"><span class="spec-label">Growth:</span> <span id="detail-spec-growth">--</span></div>
+                        </div>
+                    </div>
+                    <div class="detail-image-pane">
+                        <img id="detail-plant-image" class="detail-img hidden" src="" alt="Plant Image" onerror="this.src='assets/plants/fern.png';">
+                        <div id="detail-plant-placeholder" class="detail-img-placeholder">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sprout"><path d="M7 20h10"/><path d="M10 20c5.5-2.5 8-6.4 8-12a4 4 0 0 0-8 0c0 5.6 2.5 9.5 8 12Z"/><path d="M14 20c-5.5-2.5-8-6.4-8-12a4 4 0 0 1 8 0c0 5.6-2.5 9.5-8 12Z"/></svg>
+                            <span class="placeholder-text">Hover or click a row</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="report-filters-bar">
-                    <div class="report-search-wrapper">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <input type="text" id="report-search" placeholder="Search by genus, species, common name or family...">
+                    <div style="display: flex; gap: 12px; align-items: center; width: 100%;">
+                        <div class="report-search-wrapper" style="flex-grow: 1;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="report-search" placeholder="Search by genus, species, common name or family...">
+                        </div>
+                        <button id="btn-autofill-report" class="btn btn-secondary" style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap; padding: 12px 16px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles" style="color: var(--color-primary);"><path d="m12 3-1.912 5.886H3.82l5.056 3.674L6.964 18.45 12 14.776l5.036 3.674-1.912-5.89 5.056-3.674h-6.268Z"/></svg>
+                            Auto-Fill from Canvas
+                        </button>
                     </div>
                     <div class="report-filter-selects">
                         <div class="filter-field">
