@@ -38,9 +38,17 @@ const state = {
     activeSeason: 'summer',
     currentZip: null,
     currentAddress: '',
-    currentZone: null,
+    get currentZone() {
+        const filterZone = document.getElementById('filter-zone');
+        if (!filterZone || filterZone.value === 'any') return '7';
+        return filterZone.value;
+    },
+    set currentZone(val) {
+        // No-op to allow geocoding functions to set it without throwing
+    },
     settingsDirty: false,
-    customPlants: []
+    customPlants: [],
+    addedPlacementPlants: []
 };
 
 // UI Elements
@@ -51,9 +59,95 @@ const climateBadge = document.getElementById('climate-zone-badge');
 const climateDesc = document.getElementById('climate-desc');
 
 const soilSelect = document.getElementById('soil-type');
-const aciditySelect = document.getElementById('soil-acidity');
-const sunSelect = document.getElementById('sun-amount');
-const waterSelect = document.getElementById('water-amount');
+
+// Mocked aciditySelect, sunSelect, waterSelect to retrieve values from US Plant Report tab
+const aciditySelect = {
+    get value() {
+        const filterPh = document.getElementById('filter-ph');
+        if (!filterPh) return 'neutral';
+        const val = filterPh.value;
+        if (val === 'strongly_acid') return 'strongly_acid';
+        if (val === 'acid') return 'acid';
+        if (val === 'alkaline') return 'alkaline';
+        return 'neutral'; // 'garden' or 'any' -> neutral
+    },
+    get options() {
+        const val = this.value;
+        const textMap = {
+            'strongly_acid': 'Acidic Soil (strongly acid)',
+            'acid': 'Acidic Soil (acid)',
+            'neutral': 'Neutral Soil',
+            'alkaline': 'Alkaline Soil'
+        };
+        return [{ text: textMap[val] || 'Neutral Soil' }];
+    },
+    get selectedIndex() {
+        return 0;
+    },
+    addEventListener(event, callback) {
+        const filterPh = document.getElementById('filter-ph');
+        if (filterPh) filterPh.addEventListener(event, callback);
+    }
+};
+
+const sunSelect = {
+    get value() {
+        const filterLight = document.getElementById('filter-light');
+        if (!filterLight) return 'full-sun';
+        const val = filterLight.value;
+        if (val === 'Full Sun') return 'full-sun';
+        if (val === 'Partial Shade') return 'partial-shade';
+        if (val === 'Full Shade') return 'full-shade';
+        return 'full-sun'; // 'any' -> full-sun
+    },
+    get options() {
+        const val = this.value;
+        const textMap = {
+            'full-sun': 'Full Sun',
+            'partial-shade': 'Partial Shade',
+            'full-shade': 'Full Shade'
+        };
+        return [{ text: textMap[val] || 'Full Sun' }];
+    },
+    get selectedIndex() {
+        return 0;
+    },
+    addEventListener(event, callback) {
+        const filterLight = document.getElementById('filter-light');
+        if (filterLight) filterLight.addEventListener(event, callback);
+    }
+};
+
+const waterSelect = {
+    get value() {
+        const filterMoisture = document.getElementById('filter-moisture');
+        if (!filterMoisture) return 'well-drained';
+        const val = filterMoisture.value;
+        if (val === 'Dry') return 'dry';
+        if (val === 'Well-drained') return 'well-drained';
+        if (val === 'Moist') return 'moist';
+        if (val === 'Wet') return 'wet';
+        return 'well-drained'; // 'any' -> well-drained
+    },
+    get options() {
+        const val = this.value;
+        const textMap = {
+            'dry': 'Dry Moisture',
+            'well-drained': 'Well-drained Moisture',
+            'moist': 'Moist Moisture',
+            'wet': 'Wet Moisture'
+        };
+        return [{ text: textMap[val] || 'Well-drained Moisture' }];
+    },
+    get selectedIndex() {
+        return 0;
+    },
+    addEventListener(event, callback) {
+        const filterMoisture = document.getElementById('filter-moisture');
+        if (filterMoisture) filterMoisture.addEventListener(event, callback);
+    }
+};
+
 const perennialSlider = document.getElementById('perennial-ratio');
 const perennialLabel = document.getElementById('plant-ratio-label');
 
@@ -133,7 +227,11 @@ window.addEventListener('DOMContentLoaded', () => {
     initReportPage();
     initAiCredentials();
     initPlacementExport();
+    initPlacementPage();
     initCustomPlannerPage();
+    initVisualizerInteraction();
+    initVisualizerExport();
+    initVisualizerPlacementExport();
     
     // Load default demo space
     loadDemoSpace();
@@ -154,27 +252,33 @@ function loadDemoSpace() {
 // -------------------------------------------------------------
 function initLocationControls() {
     // Address Input event listeners
-    addressInput.addEventListener('change', (e) => {
-        handleAddressUpdate(e.target.value);
-    });
-
-    addressInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+    if (addressInput) {
+        addressInput.addEventListener('change', (e) => {
             handleAddressUpdate(e.target.value);
-            addressInput.blur();
-        }
-    });
+        });
+
+        addressInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleAddressUpdate(e.target.value);
+                addressInput.blur();
+            }
+        });
+    }
 
     // GPS location lookup button
-    btnGps.addEventListener('click', () => {
-        triggerGPSLookup();
-    });
+    if (btnGps) {
+        btnGps.addEventListener('click', () => {
+            triggerGPSLookup();
+        });
+    }
 
     // Keep perennial ratio slider sync
-    perennialSlider.addEventListener('input', (e) => {
-        const val = e.target.value;
-        perennialLabel.textContent = `${val}% Perennials / ${100 - val}% Annuals`;
-    });
+    if (perennialSlider) {
+        perennialSlider.addEventListener('input', (e) => {
+            const val = e.target.value;
+            perennialLabel.textContent = `${val}% Perennials / ${100 - val}% Annuals`;
+        });
+    }
 }
 
 let lastResolvedAddressText = '';
@@ -233,7 +337,7 @@ async function handleAddressUpdate(addressText) {
     const finalZip = getZipForAddress(addressText, resolvedZip);
     
     // If online geocoding gave us a pretty name, update input
-    if (formattedAddress !== addressText) {
+    if (formattedAddress !== addressText && addressInput) {
         addressInput.value = formattedAddress;
     }
     
@@ -285,7 +389,9 @@ async function triggerGPSLookup() {
                 console.warn('Reverse geocoding failed:', err);
             }
 
-            addressInput.value = formattedAddress;
+            if (addressInput) {
+                addressInput.value = formattedAddress;
+            }
             lastResolvedAddressText = formattedAddress.trim();
             const finalZip = getZipForAddress(formattedAddress, resolvedZip);
             updateClimateInfo(finalZip, formattedAddress);
@@ -3996,85 +4102,71 @@ function initReportPage() {
     const filterEdibility = document.getElementById('filter-edibility');
     const btnExportReport = document.getElementById('btn-export-report');
     const btnAutofillReport = document.getElementById('btn-autofill-report');
-
     const tabCustomPlanner = document.getElementById('tab-custom-planner');
     const customPlannerWorkspace = document.getElementById('custom-planner-workspace');
     const customHeaderActions = document.getElementById('custom-header-actions');
 
+    const tabVisualizer = document.getElementById('tab-visualizer');
+    const tabVisualizerPlacement = document.getElementById('tab-visualizer-placement');
+    const visualizerWorkspace = document.getElementById('visualizer-workspace');
+    const visualizerPlacementWorkspace = document.getElementById('visualizer-placement-workspace');
+    const visualizerHeaderActions = document.getElementById('visualizer-header-actions');
+    const visualizerPlacementHeaderActions = document.getElementById('visualizer-placement-header-actions');
+
     if (!tabDesigner || !tabReport || !reportWorkspace) return;
 
-    // View Toggling logic
+    // View Toggling logic using a unified helper
+    const allTabs = [tabDesigner, tabVisualizer, tabVisualizerPlacement, tabPlacement, tabCustomPlanner, tabReport];
+    const allWorkspaces = [designerWorkspace, visualizerWorkspace, visualizerPlacementWorkspace, placementWorkspace, customPlannerWorkspace, reportWorkspace];
+    const allHeaderActions = [designerHeaderActions, visualizerHeaderActions, visualizerPlacementHeaderActions, placementHeaderActions, customHeaderActions, reportHeaderActions];
+    
+    function activateTab(activeTab, activeWorkspace, activeHeaderActions, showSidebar = false, title = "", sub = "") {
+        allTabs.forEach(t => t && t.classList.remove('active'));
+        if (activeTab) activeTab.classList.add('active');
+        
+        allWorkspaces.forEach(w => w && w.classList.add('hidden'));
+        if (activeWorkspace) activeWorkspace.classList.remove('hidden');
+        
+        allHeaderActions.forEach(h => h && h.classList.add('hidden'));
+        if (activeHeaderActions) activeHeaderActions.classList.remove('hidden');
+        
+        if (sidebar) {
+            if (showSidebar) sidebar.classList.remove('hidden');
+            else sidebar.classList.add('hidden');
+        }
+        
+        if (headerTitle) headerTitle.textContent = title;
+        if (headerSub) headerSub.textContent = sub;
+    }
+
     tabDesigner.addEventListener('click', () => {
-        tabDesigner.classList.add('active');
-        if (tabPlacement) tabPlacement.classList.remove('active');
-        if (tabCustomPlanner) tabCustomPlanner.classList.remove('active');
-        tabReport.classList.remove('active');
-        
-        designerWorkspace.classList.remove('hidden');
-        if (placementWorkspace) placementWorkspace.classList.add('hidden');
-        if (customPlannerWorkspace) customPlannerWorkspace.classList.add('hidden');
-        reportWorkspace.classList.add('hidden');
-        
-        designerHeaderActions.classList.remove('hidden');
-        if (placementHeaderActions) placementHeaderActions.classList.add('hidden');
-        if (customHeaderActions) customHeaderActions.classList.add('hidden');
-        reportHeaderActions.classList.add('hidden');
-        
-        sidebar.classList.remove('hidden');
-        
-        headerTitle.textContent = "Garden Canvas";
-        headerSub.textContent = "Upload your space and let AI design the perfect landscape.";
+        activateTab(tabDesigner, designerWorkspace, designerHeaderActions, true, "Garden Canvas", "Upload your space and let AI design the perfect landscape.");
     });
+
+    if (tabVisualizer) {
+        tabVisualizer.addEventListener('click', () => {
+            activateTab(tabVisualizer, visualizerWorkspace, visualizerHeaderActions, false, "AI Visualizer", "Visualizing filtered plant species overlaid on your garden space.");
+            renderVisualizerPage();
+        });
+    }
+
+    if (tabVisualizerPlacement) {
+        tabVisualizerPlacement.addEventListener('click', () => {
+            activateTab(tabVisualizerPlacement, visualizerPlacementWorkspace, visualizerPlacementHeaderActions, false, "Visualizer Planting Blueprint", "A top-down blueprint map showing positions and quantities of the filtered plants.");
+            renderVisualizerPlacementPage();
+        });
+    }
 
     if (tabPlacement) {
         tabPlacement.addEventListener('click', () => {
-            tabPlacement.classList.add('active');
-            tabDesigner.classList.remove('active');
-            if (tabCustomPlanner) tabCustomPlanner.classList.remove('active');
-            tabReport.classList.remove('active');
-            
-            if (placementWorkspace) placementWorkspace.classList.remove('hidden');
-            designerWorkspace.classList.add('hidden');
-            if (customPlannerWorkspace) customPlannerWorkspace.classList.add('hidden');
-            reportWorkspace.classList.add('hidden');
-            
-            if (placementHeaderActions) placementHeaderActions.classList.remove('hidden');
-            designerHeaderActions.classList.add('hidden');
-            if (customHeaderActions) customHeaderActions.classList.add('hidden');
-            reportHeaderActions.classList.add('hidden');
-            
-            sidebar.classList.add('hidden'); // Hide sidebar for full diagram workspace
-            
-            headerTitle.textContent = "Placement Diagram & Planting Schedule";
-            headerSub.textContent = "A top-down blueprint map showing plant positions and quantities matching the active AI Concept.";
-            
+            activateTab(tabPlacement, placementWorkspace, placementHeaderActions, false, "Placement Diagram & Planting Schedule", "A top-down blueprint map showing plant positions and quantities matching the active AI Concept.");
             renderPlacementPage();
         });
     }
 
     if (tabCustomPlanner) {
         tabCustomPlanner.addEventListener('click', () => {
-            tabCustomPlanner.classList.add('active');
-            tabDesigner.classList.remove('active');
-            if (tabPlacement) tabPlacement.classList.remove('active');
-            tabReport.classList.remove('active');
-            
-            if (customPlannerWorkspace) customPlannerWorkspace.classList.remove('hidden');
-            designerWorkspace.classList.add('hidden');
-            if (placementWorkspace) placementWorkspace.classList.add('hidden');
-            reportWorkspace.classList.add('hidden');
-            
-            if (customHeaderActions) customHeaderActions.classList.remove('hidden');
-            designerHeaderActions.classList.add('hidden');
-            if (placementHeaderActions) placementHeaderActions.classList.add('hidden');
-            reportHeaderActions.classList.add('hidden');
-            
-            sidebar.classList.add('hidden'); // Hide sidebar
-            
-            headerTitle.textContent = "Interactive Custom Planner";
-            headerSub.textContent = "Search plants, add them to your schedule, and drag them around the layout grid to customize your garden blueprint.";
-            
-            // Check if we need to load default custom layout from active concept
+            activateTab(tabCustomPlanner, customPlannerWorkspace, customHeaderActions, false, "Interactive Custom Planner", "Search plants, add them to your schedule, and drag them around the layout grid to customize your garden blueprint.");
             if (state.customPlants.length === 0) {
                 loadCustomLayoutFromActiveConcept();
             } else {
@@ -4084,26 +4176,7 @@ function initReportPage() {
     }
 
     tabReport.addEventListener('click', () => {
-        tabReport.classList.add('active');
-        tabDesigner.classList.remove('active');
-        if (tabPlacement) tabPlacement.classList.remove('active');
-        if (tabCustomPlanner) tabCustomPlanner.classList.remove('active');
-        
-        reportWorkspace.classList.remove('hidden');
-        designerWorkspace.classList.add('hidden');
-        if (placementWorkspace) placementWorkspace.classList.add('hidden');
-        if (customPlannerWorkspace) customPlannerWorkspace.classList.add('hidden');
-        
-        reportHeaderActions.classList.remove('hidden');
-        designerHeaderActions.classList.add('hidden');
-        if (placementHeaderActions) placementHeaderActions.classList.add('hidden');
-        if (customHeaderActions) customHeaderActions.classList.add('hidden');
-        
-        sidebar.classList.add('hidden'); // Hide sidebar for full screen spreadsheet
-
-        headerTitle.textContent = "US Botanical Plant Report";
-        headerSub.textContent = "A comprehensive database of landscaping and garden plants in the United States.";
-        
+        activateTab(tabReport, reportWorkspace, reportHeaderActions, false, "US Botanical Plant Report", "A comprehensive database of landscaping and garden plants in the United States.");
         renderReportTable(); // Trigger render on activation
     });
 
@@ -4306,13 +4379,19 @@ function renderReportTable() {
     tbody.innerHTML = '';
     
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--text-muted); padding: 30px;">No matching plants found in the database.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: var(--text-muted); padding: 30px;">No matching plants found in the database.</td></tr>`;
         countLabel.textContent = `Showing 0 of ${PLANTS_DATA.length} plants`;
         return;
     }
 
     filtered.forEach(plant => {
         const tr = document.createElement('tr');
+        
+        // Photo
+        const tdPhoto = document.createElement('td');
+        const photoUrl = getPlantImageUrl(plant);
+        tdPhoto.innerHTML = `<img src="${photoUrl}" alt="${plant.name}" class="report-plant-thumb" style="width: 40px; height: 40px; border-radius: 4px; object-fit: cover; border: 1px solid var(--border-color); display: block;">`;
+        tr.appendChild(tdPhoto);
         
         // Genus
         const tdGenus = document.createElement('td');
@@ -4412,6 +4491,14 @@ function renderReportTable() {
     });
 
     countLabel.textContent = `Showing ${filtered.length} of ${PLANTS_DATA.length} plants`;
+
+    // Synchronize custom dropdowns with filtered list
+    if (typeof placementDropdown !== 'undefined' && placementDropdown) {
+        placementDropdown.setPlants(filtered);
+    }
+    if (typeof customPlannerDropdown !== 'undefined' && customPlannerDropdown) {
+        customPlannerDropdown.setPlants(filtered);
+    }
 }
 
 // Compiled CSV export function (RFC-4180 compliant)
@@ -4598,6 +4685,15 @@ function getPlacementModel() {
     }
     if (selectedPlants.length < 3) {
         selectedPlants = candidates.slice(0, 3);
+    }
+    
+    // Add user-added placement plants if not already in the list
+    if (state.addedPlacementPlants) {
+        state.addedPlacementPlants.forEach(p => {
+            if (!selectedPlants.some(x => x.name === p.name && x.genus === p.genus)) {
+                selectedPlants.push(p);
+            }
+        });
     }
     
     const colors = ["#ef4444", "#3b82f6", "#10b981", "#eab308", "#ec4899", "#8b5cf6", "#f97316"];
@@ -4911,14 +5007,298 @@ function initPlacementExport() {
 }
 
 // -------------------------------------------------------------
+// CUSTOM PLANT DROPDOWN & FILTER HELPERS
+// -------------------------------------------------------------
+let placementDropdown, customPlannerDropdown;
+
+function getFilteredPlants() {
+    const reportSearch = document.getElementById('report-search');
+    const filterPh = document.getElementById('filter-ph');
+    const filterZone = document.getElementById('filter-zone');
+    const filterLight = document.getElementById('filter-light');
+    const filterMoisture = document.getElementById('filter-moisture');
+    const filterEdibility = document.getElementById('filter-edibility');
+
+    if (!reportSearch || !filterPh || !filterZone || !filterLight || !filterMoisture || !filterEdibility) {
+        return PLANTS_DATA;
+    }
+
+    const query = reportSearch.value.trim().toLowerCase();
+    const phVal = filterPh.value;
+    const zoneVal = filterZone.value;
+    const lightVal = filterLight.value;
+    const moistureVal = filterMoisture.value;
+    const edibilityVal = filterEdibility.value;
+
+    return PLANTS_DATA.filter(plant => {
+        // Text search
+        if (query) {
+            const matchesQuery = 
+                plant.genus.toLowerCase().includes(query) ||
+                plant.species.toLowerCase().includes(query) ||
+                plant.name.toLowerCase().includes(query) ||
+                plant.family.toLowerCase().includes(query);
+            if (!matchesQuery) return false;
+        }
+
+        // Soil pH
+        if (phVal !== 'any') {
+            if (phVal === 'strongly_acid' && !plant.strongly_acid) return false;
+            if (phVal === 'acid' && !plant.acid) return false;
+            if (phVal === 'garden' && !plant.garden) return false;
+            if (phVal === 'alkaline' && !plant.alkaline) return false;
+        }
+
+        // Hardiness Zone
+        if (zoneVal !== 'any') {
+            const zNum = parseInt(zoneVal);
+            const match = plant.zone.match(/(\d+)\s*-\s*(\d+)/);
+            if (match) {
+                const minZ = parseInt(match[1]);
+                const maxZ = parseInt(match[2]);
+                if (zNum < minZ || zNum > maxZ) return false;
+            } else {
+                const singleZ = parseInt(plant.zone);
+                if (singleZ !== zNum) return false;
+            }
+        }
+
+        // Light exposure
+        if (lightVal !== 'any') {
+            if (!plant.light.includes(lightVal)) return false;
+        }
+
+        // Moisture
+        if (moistureVal !== 'any') {
+            if (!plant.moisture.includes(moistureVal)) return false;
+        }
+
+        // Edibility
+        if (edibilityVal !== 'any') {
+            const isEdible = plant.edible && plant.edible.toLowerCase() !== 'none';
+            if (edibilityVal === 'edible' && !isEdible) return false;
+            if (edibilityVal === 'non_edible' && isEdible) return false;
+        }
+
+        return true;
+    });
+}
+
+class CustomPlantDropdown {
+    constructor(containerId, onSelectCallback) {
+        this.container = document.getElementById(containerId);
+        this.onSelect = onSelectCallback;
+        this.selectedPlant = null;
+        this.plants = [];
+        this.isOpen = false;
+        
+        this.init();
+    }
+    
+    init() {
+        if (!this.container) return;
+        this.container.classList.add('custom-dropdown-container');
+        
+        this.container.innerHTML = `
+            <div class="custom-dropdown-btn">
+                <div class="selected-content">
+                    <span class="trigger-label">Select a plant to add...</span>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="custom-dropdown-menu">
+                <div class="custom-dropdown-search-wrapper">
+                    <input type="text" class="custom-dropdown-search-input" placeholder="Search filtered plants...">
+                </div>
+                <div class="custom-dropdown-list"></div>
+            </div>
+        `;
+        
+        this.btn = this.container.querySelector('.custom-dropdown-btn');
+        this.menu = this.container.querySelector('.custom-dropdown-menu');
+        this.searchInput = this.container.querySelector('.custom-dropdown-search-input');
+        this.listContainer = this.container.querySelector('.custom-dropdown-list');
+        
+        this.btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggle();
+        });
+        
+        this.searchInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        
+        this.searchInput.addEventListener('input', () => {
+            this.filterItems();
+        });
+        
+        document.addEventListener('click', () => {
+            this.close();
+        });
+    }
+    
+    setPlants(plantsList) {
+        this.plants = plantsList;
+        this.renderItems();
+    }
+    
+    toggle() {
+        if (this.isOpen) {
+            this.close();
+        } else {
+            this.open();
+        }
+    }
+    
+    open() {
+        document.querySelectorAll('.custom-dropdown-container').forEach(el => {
+            if (el !== this.container) {
+                el.classList.remove('open');
+            }
+        });
+        
+        this.container.classList.add('open');
+        this.isOpen = true;
+        this.searchInput.focus();
+        this.filterItems();
+    }
+    
+    close() {
+        this.container.classList.remove('open');
+        this.isOpen = false;
+    }
+    
+    renderItems() {
+        this.filterItems();
+    }
+    
+    filterItems() {
+        this.listContainer.innerHTML = '';
+        const searchVal = this.searchInput.value.toLowerCase().trim();
+        
+        let renderedCount = 0;
+        
+        const filtered = this.plants.filter(plant => {
+            if (!searchVal) return true;
+            return (
+                plant.genus.toLowerCase().includes(searchVal) ||
+                plant.species.toLowerCase().includes(searchVal) ||
+                plant.name.toLowerCase().includes(searchVal)
+            );
+        });
+        
+        if (filtered.length === 0) {
+            const noResults = document.createElement('div');
+            noResults.style.padding = '10px';
+            noResults.style.fontSize = '10px';
+            noResults.style.color = 'var(--text-muted)';
+            noResults.style.textAlign = 'center';
+            noResults.textContent = 'No matching plants found.';
+            this.listContainer.appendChild(noResults);
+            return;
+        }
+        
+        filtered.forEach(plant => {
+            const item = document.createElement('div');
+            item.className = 'custom-dropdown-item';
+            
+            const photoUrl = getPlantImageUrl(plant);
+            
+            item.innerHTML = `
+                <img src="${photoUrl}" alt="${plant.name}">
+                <div class="item-details">
+                    <div class="item-names"><em>${plant.genus}</em> <em>${plant.species}</em></div>
+                    <div class="item-common">${plant.name}</div>
+                </div>
+            `;
+            
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.select(plant);
+            });
+            
+            this.listContainer.appendChild(item);
+            renderedCount++;
+            if (renderedCount >= 100) return;
+        });
+    }
+    
+    select(plant) {
+        this.selectedPlant = plant;
+        const photoUrl = getPlantImageUrl(plant);
+        
+        const label = this.btn.querySelector('.selected-content');
+        label.innerHTML = `
+            <img src="${photoUrl}" class="selected-img" alt="${plant.name}">
+            <div>
+                <div style="font-size: 11px; font-weight: 500;"><em>${plant.genus}</em> <em>${plant.species}</em></div>
+                <div style="font-size: 9px; color: var(--text-muted);">${plant.name}</div>
+            </div>
+        `;
+        
+        this.close();
+        
+        if (this.onSelect) {
+            this.onSelect(plant);
+        }
+    }
+    
+    clearSelection() {
+        this.selectedPlant = null;
+        const label = this.btn.querySelector('.selected-content');
+        label.innerHTML = `<span class="trigger-label">Select a plant to add...</span>`;
+        this.searchInput.value = '';
+    }
+}
+
+// -------------------------------------------------------------
+// PLACEMENT DIAGRAM INTERACTIVE CONTROLS
+// -------------------------------------------------------------
+function initPlacementPage() {
+    const btnPlacementAdd = document.getElementById('btn-placement-add-plant');
+    const btnPlacementClear = document.getElementById('btn-placement-clear-added');
+    
+    if (!btnPlacementAdd) return;
+    
+    placementDropdown = new CustomPlantDropdown('placement-dropdown-container');
+    placementDropdown.setPlants(getFilteredPlants());
+    
+    btnPlacementAdd.addEventListener('click', () => {
+        if (!placementDropdown || !placementDropdown.selectedPlant) {
+            alert('Please select a plant from the dropdown list first.');
+            return;
+        }
+        const plant = placementDropdown.selectedPlant;
+        
+        if (!state.addedPlacementPlants) {
+            state.addedPlacementPlants = [];
+        }
+        
+        if (state.addedPlacementPlants.some(p => p.name === plant.name && p.genus === plant.genus)) {
+            alert('This plant has already been added to the placement diagram.');
+            return;
+        }
+        
+        state.addedPlacementPlants.push(plant);
+        renderPlacementPage();
+        placementDropdown.clearSelection();
+    });
+    
+    if (btnPlacementClear) {
+        btnPlacementClear.addEventListener('click', () => {
+            state.addedPlacementPlants = [];
+            renderPlacementPage();
+        });
+    }
+}
+
+// -------------------------------------------------------------
 // INTERACTIVE CUSTOM PLANNER PAGE
 // -------------------------------------------------------------
-let customSearchInput, customSelectInput, customAddBtn, customTbody, customCanvas;
+let customAddBtn, customTbody, customCanvas;
 let customClearBtn, customResetBtn, customExportBtn, customCountBadge, customDimensionBadge;
 
 function initCustomPlannerPage() {
-    customSearchInput = document.getElementById('custom-plant-search');
-    customSelectInput = document.getElementById('custom-plant-select');
     customAddBtn = document.getElementById('btn-custom-add-plant');
     customTbody = document.getElementById('custom-table-body');
     customCanvas = document.getElementById('custom-planner-canvas');
@@ -4930,20 +5310,18 @@ function initCustomPlannerPage() {
 
     if (!customCanvas) return;
 
-    // Search and Autocomplete handler
-    if (customSearchInput) {
-        customSearchInput.addEventListener('input', updateCustomPlantSelect);
-        updateCustomPlantSelect(); // Initial populate
-    }
+    // Initialize custom dropdown
+    customPlannerDropdown = new CustomPlantDropdown('custom-planner-dropdown-container');
+    customPlannerDropdown.setPlants(getFilteredPlants());
 
     // Add Plant Button handler
     if (customAddBtn) {
         customAddBtn.addEventListener('click', () => {
-            if (!customSelectInput || !customSelectInput.value) {
+            if (!customPlannerDropdown || !customPlannerDropdown.selectedPlant) {
                 alert('Please select a plant from the dropdown list first.');
                 return;
             }
-            const data = JSON.parse(customSelectInput.value);
+            const data = customPlannerDropdown.selectedPlant;
             
             // Determine unique symbol letter (A-Z)
             const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -5501,5 +5879,572 @@ function getPlantImageUrl(plant) {
     }
     const idx = Math.abs(hash) % fallbacks.length;
     return fallbacks[idx];
+}
+
+// Helper to retrieve the current list of filtered plants from the report tab filters
+function getFilteredPlants() {
+    const reportSearch = document.getElementById('report-search');
+    const filterPh = document.getElementById('filter-ph');
+    const filterZone = document.getElementById('filter-zone');
+    const filterLight = document.getElementById('filter-light');
+    const filterMoisture = document.getElementById('filter-moisture');
+    const filterEdibility = document.getElementById('filter-edibility');
+
+    if (!filterPh) return PLANTS_DATA;
+
+    const query = reportSearch ? reportSearch.value.trim().toLowerCase() : '';
+    const phVal = filterPh.value;
+    const zoneVal = filterZone ? filterZone.value : 'any';
+    const lightVal = filterLight ? filterLight.value : 'any';
+    const moistureVal = filterMoisture ? filterMoisture.value : 'any';
+    const edibilityVal = filterEdibility ? filterEdibility.value : 'any';
+
+    return PLANTS_DATA.filter(plant => {
+        if (query) {
+            const matchesQuery = 
+                plant.genus.toLowerCase().includes(query) ||
+                plant.species.toLowerCase().includes(query) ||
+                plant.name.toLowerCase().includes(query) ||
+                plant.family.toLowerCase().includes(query);
+            if (!matchesQuery) return false;
+        }
+
+        if (phVal !== 'any') {
+            if (phVal === 'strongly_acid' && !plant.strongly_acid) return false;
+            if (phVal === 'acid' && !plant.acid) return false;
+            if (phVal === 'garden' && !plant.garden) return false;
+            if (phVal === 'alkaline' && !plant.alkaline) return false;
+        }
+
+        if (zoneVal !== 'any') {
+            const zNum = parseInt(zoneVal);
+            const match = plant.zone.match(/(\d+)\s*-\s*(\d+)/);
+            if (match) {
+                const minZ = parseInt(match[1]);
+                const maxZ = parseInt(match[2]);
+                if (zNum < minZ || zNum > maxZ) return false;
+            } else {
+                const singleZ = parseInt(plant.zone);
+                if (singleZ !== zNum) return false;
+            }
+        }
+
+        if (lightVal !== 'any') {
+            if (!plant.light.includes(lightVal)) return false;
+        }
+
+        if (moistureVal !== 'any') {
+            if (!plant.moisture.includes(moistureVal)) return false;
+        }
+
+        if (edibilityVal !== 'any') {
+            const isEdible = plant.edible && plant.edible.toLowerCase() !== 'none';
+            if (edibilityVal === 'edible' && !isEdible) return false;
+            if (edibilityVal === 'non_edible' && isEdible) return false;
+        }
+
+        return true;
+    });
+}
+
+// Generate shared blueprint placement schedule and coordinates for the top 8 filtered plants
+function getVisualizerModel() {
+    const filtered = getFilteredPlants();
+    const selectedPlants = filtered.slice(0, 8);
+    const colors = ["#ef4444", "#3b82f6", "#10b981", "#eab308", "#ec4899", "#8b5cf6", "#f97316", "#06b6d4"];
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    
+    let totalQty = 0;
+    
+    const schedule = selectedPlants.map((plant, index) => {
+        const symbol = letters[index % letters.length];
+        const color = colors[index % colors.length];
+        const heightStr = plant.height || "3 ft";
+        const hMax = parseInt(heightStr.split('-')[1] || heightStr) || 3;
+        
+        let type = 'perennial';
+        if (hMax > 15) type = 'tree';
+        else if (hMax > 5) type = 'shrub';
+        
+        let baseQty = 4;
+        if (type === 'tree') baseQty = 1;
+        else if (type === 'shrub') baseQty = 2;
+        else baseQty = 5;
+        
+        let spacing = "1.5 ft";
+        if (type === 'tree') spacing = "15 ft";
+        else if (type === 'shrub') spacing = "5 ft";
+        
+        totalQty += baseQty;
+        
+        const positions = [];
+        // Seeded random positions based on genus + species to keep placement static unless filters change
+        let seed = plant.genus.charCodeAt(0) + plant.species.charCodeAt(0);
+        function random() {
+            let x = Math.sin(seed++) * 10000;
+            return x - Math.floor(x);
+        }
+
+        for (let q = 0; q < baseQty; q++) {
+            let yMin = 0.65, yMax = 0.85;
+            if (type === 'tree') {
+                yMin = 0.35; yMax = 0.5;
+            } else if (type === 'shrub') {
+                yMin = 0.5; yMax = 0.65;
+            }
+            
+            const step = 0.7 / Math.max(1, baseQty);
+            const x = 0.15 + step * q + (random() * 0.04 - 0.02);
+            const y = yMin + random() * (yMax - yMin);
+            
+            positions.push({ x: Math.min(0.9, Math.max(0.1, x)), y: Math.min(0.9, Math.max(0.1, y)) });
+        }
+        
+        return {
+            symbol,
+            color,
+            genus: plant.genus,
+            species: plant.species,
+            name: plant.name,
+            quantity: baseQty,
+            spacing,
+            height: plant.height,
+            positions,
+            type,
+            plantObj: plant
+        };
+    });
+    
+    return {
+        schedule,
+        totalQty
+    };
+}
+
+let activeVisualizerHover = null;
+let visualizerModel = null;
+const plantImageCache = {};
+
+// Pre-load images for the visualizer canvas to prevent blank circles during first render
+function preloadPlantImages(schedule) {
+    schedule.forEach(group => {
+        const url = getPlantImageUrl(group.plantObj);
+        if (!plantImageCache[group.name]) {
+            const img = new Image();
+            img.onload = () => {
+                drawVisualizerCanvas();
+            };
+            img.src = url;
+            plantImageCache[group.name] = img;
+        }
+    });
+}
+
+// Render the AI Visualizer list items
+function renderVisualizerPage() {
+    const listContainer = document.getElementById('visualizer-list');
+    const countBadge = document.getElementById('visualizer-count-badge');
+    const canvas = document.getElementById('visualizer-canvas');
+    
+    if (!listContainer || !canvas) return;
+    
+    visualizerModel = getVisualizerModel();
+    
+    if (countBadge) {
+        countBadge.textContent = `${visualizerModel.schedule.length} Species`;
+    }
+    
+    listContainer.innerHTML = '';
+    
+    if (visualizerModel.schedule.length === 0) {
+        listContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No plants match the selected filters. Please adjust filters in the US Plant Report tab.</div>`;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(0, 0, canvas.width || 800, canvas.height || 600);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("No plants match the selected filters.", (canvas.width || 800) / 2, (canvas.height || 600) / 2);
+        return;
+    }
+    
+    // Start preloading images
+    preloadPlantImages(visualizerModel.schedule);
+    
+    visualizerModel.schedule.forEach(group => {
+        const item = document.createElement('div');
+        item.className = 'visualizer-list-item';
+        item.style.padding = '12px';
+        item.style.border = '1px solid var(--border-color)';
+        item.style.borderRadius = 'var(--radius-md)';
+        item.style.background = 'rgba(255,255,255,0.02)';
+        item.style.transition = 'all 0.2s ease';
+        item.style.cursor = 'pointer';
+        item.style.display = 'flex';
+        item.style.flexDirection = 'column';
+        if (activeVisualizerHover === group.symbol) {
+            item.classList.add('hover-highlight');
+            item.style.background = 'rgba(255,255,255,0.06)';
+            item.style.borderColor = group.color;
+        }
+        item.dataset.symbol = group.symbol;
+        item.style.borderLeft = `4px solid ${group.color}`;
+        
+        const photoUrl = getPlantImageUrl(group.plantObj);
+        
+        item.innerHTML = `
+            <div class="vis-item-header" style="display: flex; align-items: center; gap: 10px;">
+                <span class="plant-key-badge" style="background-color: ${group.color}; flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px;">
+                    ${group.symbol}
+                </span>
+                <img src="${photoUrl}" alt="${group.name}" class="vis-item-thumb" style="width: 44px; height: 44px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-color); flex-shrink: 0;">
+                <div style="flex-grow: 1; min-width: 0;">
+                    <div style="font-family: var(--font-heading); font-weight: 600; font-size: 13px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${group.name}</div>
+                    <div style="font-style: italic; font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${group.genus} ${group.species}</div>
+                </div>
+            </div>
+            <div class="vis-item-details" style="display: flex; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--text-muted);">
+                <span>Zone ${group.plantObj.zone}</span>
+                <span>•</span>
+                <span>${group.plantObj.growth} Growth</span>
+            </div>
+        `;
+        
+        item.addEventListener('mouseenter', () => {
+            activeVisualizerHover = group.symbol;
+            drawVisualizerCanvas();
+            item.classList.add('hover-highlight');
+            item.style.background = 'rgba(255,255,255,0.06)';
+            item.style.borderColor = group.color;
+        });
+        
+        item.addEventListener('mouseleave', () => {
+            activeVisualizerHover = null;
+            drawVisualizerCanvas();
+            item.classList.remove('hover-highlight');
+            item.style.background = 'rgba(255,255,255,0.02)';
+            item.style.borderColor = 'var(--border-color)';
+        });
+        
+        listContainer.appendChild(item);
+    });
+    
+    drawVisualizerCanvas();
+}
+
+// Draw the AI Visualizer Canvas with background photo and plant pins
+function drawVisualizerCanvas() {
+    const canvas = document.getElementById('visualizer-canvas');
+    if (!canvas || !visualizerModel) return;
+    const ctx = canvas.getContext('2d');
+    
+    const img = new Image();
+    img.onload = () => {
+        canvas.width = img.naturalWidth || 800;
+        canvas.height = img.naturalHeight || 600;
+        const w = canvas.width;
+        const h = canvas.height;
+        
+        ctx.drawImage(img, 0, 0);
+        
+        const groundLevel = h * 0.65;
+        
+        // Draw mulch bed
+        ctx.fillStyle = "rgba(69, 26, 3, 0.4)";
+        ctx.strokeStyle = "rgba(69, 26, 3, 0.65)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-50, h + 50);
+        ctx.lineTo(-50, groundLevel + 20);
+        ctx.bezierCurveTo(w * 0.3, groundLevel - 20, w * 0.7, groundLevel + 25, w + 50, groundLevel - 5);
+        ctx.lineTo(w + 50, h + 50);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Gather and sort all individual coordinates
+        let allPlants = [];
+        visualizerModel.schedule.forEach(group => {
+            group.positions.forEach(pos => {
+                allPlants.push({
+                    x: pos.x * w,
+                    y: pos.y * h,
+                    group: group,
+                    rVal: Math.sin(pos.x * 120) * 0.5 + 0.5
+                });
+            });
+        });
+        
+        allPlants.sort((a, b) => a.y - b.y);
+        
+        // Draw procedural plants first (painter's algorithm)
+        allPlants.forEach(plant => {
+            ctx.save();
+            ctx.translate(plant.x, plant.y);
+            const scale = 0.55 + plant.rVal * 0.35;
+            ctx.scale(scale, scale);
+            
+            const theme = state.activeTheme || 'cottage';
+            if (theme === 'xeriscape') {
+                drawXeriscapePlant(ctx, plant.group.type === 'tree' ? 'background' : (plant.group.type === 'shrub' ? 'midground' : 'foreground'), plant.rVal);
+            } else if (theme === 'zen') {
+                drawZenPlant(ctx, plant.group.type === 'tree' ? 'background' : (plant.group.type === 'shrub' ? 'midground' : 'foreground'), plant.rVal);
+            } else {
+                drawCottagePlant(ctx, plant.group.type === 'tree' ? 'background' : (plant.group.type === 'shrub' ? 'midground' : 'foreground'), plant.rVal, 70);
+            }
+            
+            ctx.restore();
+        });
+        
+        // Draw floating circular plant photos
+        visualizerModel.schedule.forEach(group => {
+            if (group.positions.length === 0) return;
+            
+            let sumX = 0, sumY = 0;
+            group.positions.forEach(pos => {
+                sumX += pos.x * w;
+                sumY += pos.y * h;
+            });
+            const cx = sumX / group.positions.length;
+            const cy = sumY / group.positions.length;
+            
+            const badgeX = cx;
+            const badgeY = cy - 80;
+            
+            const isHovered = activeVisualizerHover === group.symbol;
+            
+            // Dashed connector line
+            ctx.strokeStyle = isHovered ? group.color : "rgba(255, 255, 255, 0.4)";
+            ctx.lineWidth = isHovered ? 2.5 : 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(badgeX, badgeY + 25);
+            ctx.lineTo(cx, cy);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Anchor dot
+            ctx.fillStyle = group.color;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // Outer circular photo container
+            ctx.save();
+            if (isHovered) {
+                ctx.shadowColor = group.color;
+                ctx.shadowBlur = 15;
+            } else {
+                ctx.shadowColor = "rgba(0,0,0,0.3)";
+                ctx.shadowBlur = 6;
+            }
+            
+            ctx.fillStyle = "#1e293b";
+            ctx.strokeStyle = group.color;
+            ctx.lineWidth = isHovered ? 4 : 2;
+            ctx.beginPath();
+            ctx.arc(badgeX, badgeY, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+            
+            // Draw image inside circular clip path
+            const plantImg = plantImageCache[group.name];
+            if (plantImg && plantImg.complete) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(badgeX, badgeY, 24, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.drawImage(plantImg, badgeX - 24, badgeY - 24, 48, 48);
+                ctx.restore();
+            }
+            
+            // Small key badge A-H
+            ctx.fillStyle = group.color;
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(badgeX - 18, badgeY - 18, 9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 9px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(group.symbol, badgeX - 18, badgeY - 18);
+            
+            // Text Label Box
+            ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+            ctx.font = "bold 10px sans-serif";
+            const labelText = group.name;
+            const textWidth = ctx.measureText(labelText).width;
+            
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(badgeX - (textWidth + 12) / 2, badgeY + 28, textWidth + 12, 16, 4);
+            } else {
+                ctx.rect(badgeX - (textWidth + 12) / 2, badgeY + 28, textWidth + 12, 16);
+            }
+            ctx.fill();
+            
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(labelText, badgeX, badgeY + 36);
+        });
+    };
+    img.src = imgBefore.src;
+}
+
+// Interaction: Canvas Hover tracking to sync with the sidebar listing
+function initVisualizerInteraction() {
+    const canvas = document.getElementById('visualizer-canvas');
+    if (!canvas) return;
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (!visualizerModel) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const mouseX = (e.clientX - rect.left) * scaleX;
+        const mouseY = (e.clientY - rect.top) * scaleY;
+        
+        let foundHover = null;
+        
+        for (let i = 0; i < visualizerModel.schedule.length; i++) {
+            const group = visualizerModel.schedule[i];
+            if (group.positions.length === 0) continue;
+            
+            let sumX = 0, sumY = 0;
+            group.positions.forEach(pos => {
+                sumX += pos.x * canvas.width;
+                sumY += pos.y * canvas.height;
+            });
+            const cx = sumX / group.positions.length;
+            const cy = (sumY / group.positions.length) - 80;
+            
+            const dist = Math.hypot(mouseX - cx, mouseY - cy);
+            if (dist <= 25) {
+                foundHover = group.symbol;
+                break;
+            }
+        }
+        
+        if (activeVisualizerHover !== foundHover) {
+            activeVisualizerHover = foundHover;
+            drawVisualizerCanvas();
+            
+            const items = document.querySelectorAll('.visualizer-list-item');
+            items.forEach(item => {
+                if (item.dataset.symbol === foundHover) {
+                    item.classList.add('hover-highlight');
+                    item.style.background = 'rgba(255,255,255,0.06)';
+                    item.style.borderColor = item.style.borderLeftColor;
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    item.classList.remove('hover-highlight');
+                    item.style.background = 'rgba(255,255,255,0.02)';
+                    item.style.borderColor = 'var(--border-color)';
+                }
+            });
+        }
+    });
+    
+    canvas.addEventListener('mouseleave', () => {
+        if (activeVisualizerHover !== null) {
+            activeVisualizerHover = null;
+            drawVisualizerCanvas();
+            
+            const items = document.querySelectorAll('.visualizer-list-item');
+            items.forEach(item => {
+                item.classList.remove('hover-highlight');
+                item.style.background = 'rgba(255,255,255,0.02)';
+                item.style.borderColor = 'var(--border-color)';
+            });
+        }
+    });
+}
+
+// Export the visualizer design to PNG
+function initVisualizerExport() {
+    const btn = document.getElementById('btn-export-visualizer');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        const canvas = document.getElementById('visualizer-canvas');
+        if (!canvas) return;
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `LandscapePro_AI_Visualizer_Design.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    });
+}
+
+// Render the top-down planting blueprint for the visualizer plants
+function renderVisualizerPlacementPage() {
+    const canvas = document.getElementById('visualizer-placement-canvas');
+    const tableBody = document.getElementById('visualizer-placement-table-body');
+    const dimensionBadge = document.getElementById('visualizer-placement-dimension-badge');
+    const countBadge = document.getElementById('visualizer-placement-count-badge');
+    
+    if (!canvas || !tableBody) return;
+    
+    const model = getVisualizerModel();
+    
+    const lengthVal = areaLengthInput ? areaLengthInput.value : 20;
+    const widthVal = areaWidthInput ? areaWidthInput.value : 15;
+    if (dimensionBadge) {
+        dimensionBadge.textContent = `${lengthVal}' x ${widthVal}' Grid`;
+    }
+    
+    if (countBadge) {
+        countBadge.textContent = `${model.totalQty} Plants Total`;
+    }
+    
+    drawPlacementBlueprint(canvas, model);
+    
+    tableBody.innerHTML = '';
+    model.schedule.forEach(group => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <span class="plant-key-badge" style="background-color: ${group.color};">
+                    ${group.symbol}
+                </span>
+            </td>
+            <td style="font-family: var(--font-heading); font-weight: 500; font-style: italic;">
+                ${group.genus} ${group.species}
+            </td>
+            <td>${group.name}</td>
+            <td style="font-weight: 600; color: var(--color-primary);">${group.quantity}</td>
+            <td>${group.spacing}</td>
+            <td>${group.height}</td>
+        `;
+        tableBody.appendChild(tr);
+    });
+}
+
+// Export the blueprint layout
+function initVisualizerPlacementExport() {
+    const btn = document.getElementById('btn-export-visualizer-placement');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        const canvas = document.getElementById('visualizer-placement-canvas');
+        if (!canvas) return;
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `LandscapePro_Filtered_Planting_Blueprint.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    });
 }
 

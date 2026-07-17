@@ -36,37 +36,6 @@
             </div>
 
             <div class="sidebar-scroll">
-                <!-- Section 1: Location & Climate -->
-                <div class="control-group">
-                    <h2 class="section-title">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                        Location & Climate
-                    </h2>
-                    
-                    <label for="address-input">Property Address</label>
-                    <div class="address-input-wrapper">
-                        <input type="text" id="address-input" class="input-select address-input" placeholder="Enter zip or address (e.g. 90210)...">
-                        <button type="button" id="btn-gps" class="btn-gps" title="Use current GPS location">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <circle cx="12" cy="12" r="3"></circle>
-                                <line x1="12" y1="1" x2="12" y2="3"></line>
-                                <line x1="12" y1="21" x2="12" y2="23"></line>
-                                <line x1="1" y1="12" x2="3" y2="12"></line>
-                                <line x1="21" y1="12" x2="23" y2="12"></line>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div id="climate-zone-card" class="climate-card hidden">
-                        <div class="climate-info">
-                            <span class="climate-label">USDA Hardiness Zone</span>
-                            <span id="climate-zone-badge" class="climate-badge">Zone --</span>
-                        </div>
-                        <div id="climate-desc" class="climate-desc">Select a zip code to calculate.</div>
-                    </div>
-                </div>
-
                 <!-- Section 2: Soil & Environment -->
                 <div class="control-group">
                     <h2 class="section-title">
@@ -89,39 +58,6 @@
                             <option value="silt-loam">Silt Loam (Excellent moisture retention)</option>
                             <option value="gravelly">Gravelly / Rocky (High drainage, poor retention)</option>
                             <option value="woodland">Acidic Woodland Soil (High organic, low pH)</option>
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="soil-acidity">Soil Acidity (pH)</label>
-                        <select id="soil-acidity" class="input-select">
-                            <option value="neutral" selected>Neutral (pH 6.0 - 7.0) - Optimal</option>
-                            <option value="acidic">Acidic (pH &lt; 6.0) - Ideal for Hydrangeas/Azaleas</option>
-                            <option value="alkaline">Alkaline (pH &gt; 7.0) - Ideal for Lilacs/Clematis</option>
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="sun-amount">Amount of Sun</label>
-                        <select id="sun-amount" class="input-select">
-                            <option value="full-sun">Full Sun (6+ hours direct)</option>
-                            <option value="dappled-sun">Dappled Sun (Filtered light all day)</option>
-                            <option value="partial-shade">Partial Shade (3-6 hours)</option>
-                            <option value="full-shade">Full Shade (Under 3 hours)</option>
-                            <option value="deep-shade">Deep Shade (Dense canopy, no direct sun)</option>
-                            <option value="hot-afternoon">Hot Afternoon Sun (Intense west exposure)</option>
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="water-amount">Amount of Moisture</label>
-                        <select id="water-amount" class="input-select">
-                            <option value="well-drained">Well-drained / Average (Optimal)</option>
-                            <option value="dry">Extremely Dry / Arid (Drought-like)</option>
-                            <option value="moist">Consistently Moist (Damp forest floor)</option>
-                            <option value="wet">Soggy / Wet (Bog-like conditions)</option>
-                            <option value="seasonally-wet">Seasonally Wet (Wet winter, dry summer)</option>
-                            <option value="flood-prone">Flood-prone / Hydric (Streamside / low-lying)</option>
                         </select>
                     </div>
                 </div>
@@ -251,6 +187,8 @@
                         </div>
                         <div class="nav-tabs">
                             <button id="tab-designer" class="nav-tab active">Garden Designer</button>
+                            <button id="tab-visualizer" class="nav-tab">AI Visualizer</button>
+                            <button id="tab-visualizer-placement" class="nav-tab">Visualizer Placement</button>
                             <button id="tab-placement" class="nav-tab">Placement Diagram</button>
                             <button id="tab-custom-planner" class="nav-tab">Custom Planner</button>
                             <button id="tab-report" class="nav-tab">US Plant Report</button>
@@ -271,6 +209,18 @@
                             Export All
                         </button>
                     </div>
+                </div>
+                <div class="header-right hidden" id="visualizer-header-actions">
+                    <button id="btn-export-visualizer" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-left"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Export Visualization (PNG)
+                    </button>
+                </div>
+                <div class="header-right hidden" id="visualizer-placement-header-actions">
+                    <button id="btn-export-visualizer-placement" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-left"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Export Diagram Blueprint (PNG)
+                    </button>
                 </div>
                 <div class="header-right hidden" id="placement-header-actions">
                     <button id="btn-export-placement" class="btn btn-primary">
@@ -444,6 +394,24 @@
                             <h3>Planting Schedule</h3>
                             <span class="badge badge-emerald" id="placement-count-badge">0 Plants Total</span>
                         </div>
+                        
+                        <!-- Add Custom Plants block in Placement tab -->
+                        <div class="placement-add-container" style="padding: 16px; border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+                            <h4 style="margin: 0; font-size: 11px; font-weight: 600; color: var(--text-main);">Add Custom Plant Specimen</h4>
+                            <div class="custom-dropdown-container" id="placement-dropdown-container">
+                                <!-- Custom dropdown will be initialized here -->
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button id="btn-placement-add-plant" class="btn btn-primary" style="flex: 2; padding: 8px 12px; font-size: 11px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Add Plant
+                                </button>
+                                <button id="btn-placement-clear-added" class="btn btn-secondary" style="flex: 1; padding: 8px 12px; font-size: 11px;">
+                                    Clear Added
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div class="placement-table-wrapper">
                             <table class="placement-table">
                                 <thead>
@@ -458,6 +426,88 @@
                                 </thead>
                                 <tbody id="placement-table-body">
                                     <!-- Dynamic rows matching current AI image -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- AI Visualizer Container (Hidden by default) -->
+            <div class="visualizer-workspace hidden" id="visualizer-workspace" style="flex-grow: 1; display: flex; flex-direction: column; overflow: auto; min-height: 0; padding: 24px 32px; gap: 20px; background-color: var(--bg-app);">
+                <div class="visualizer-grid" style="flex-grow: 1; display: grid; grid-template-columns: 320px 1fr; gap: 24px; overflow: auto; min-height: 0;">
+                    <!-- Left: Filtered Plantings List -->
+                    <section class="panel visualizer-list-panel" style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column;">
+                        <div class="panel-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="font-family: var(--font-heading); font-size: 14px; font-weight: 600; margin: 0;">Filtered Plantings</h3>
+                            <span class="badge badge-emerald" id="visualizer-count-badge">0 Species</span>
+                        </div>
+                        <div class="visualizer-list-wrapper" style="flex-grow: 1; overflow-y: auto; padding: 12px;">
+                            <div class="visualizer-list" id="visualizer-list" style="display: flex; flex-direction: column; gap: 8px;">
+                                <!-- Dynamic rows of filtered plants with photos and details -->
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Right: Visualizer Canvas Showcase -->
+                    <section class="panel visualizer-canvas-panel" style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column;">
+                        <div class="panel-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="font-family: var(--font-heading); font-size: 14px; font-weight: 600; margin: 0;">AI Filtered Specimen Overlay</h3>
+                            <span class="badge" id="visualizer-active-photo-badge">Active Photo</span>
+                        </div>
+                        <!-- Canvas container -->
+                        <div class="visualizer-canvas-container" style="position: relative; flex-grow: 1; display: flex; background: rgba(0, 0, 0, 0.2); overflow: auto; padding: 20px;">
+                            <div class="visualizer-canvas-wrapper" style="position: relative;">
+                                <canvas id="visualizer-canvas"></canvas>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Visualizer Placement Container (Hidden by default) -->
+            <div class="placement-workspace hidden" id="visualizer-placement-workspace">
+                <div class="placement-grid">
+                    <!-- Left: Visualizer Placement Canvas Blueprint -->
+                    <section class="panel placement-canvas-panel">
+                        <div class="panel-header">
+                            <h3>Visualizer Planting Blueprint</h3>
+                            <span class="badge" id="visualizer-placement-dimension-badge">20' x 15' Grid</span>
+                        </div>
+                        <div class="placement-canvas-wrapper">
+                            <canvas id="visualizer-placement-canvas"></canvas>
+                        </div>
+                        <div class="placement-legend">
+                            <div class="legend-item"><span class="legend-dot structure"></span> Structure / Fence</div>
+                            <div class="legend-item"><span class="legend-dot path"></span> Patio / Walkway</div>
+                            <div class="legend-item"><span class="legend-dot lawn"></span> Turf / Lawn</div>
+                            <div class="legend-item"><span class="legend-dot bed"></span> Garden Bed Mulch</div>
+                            <div class="legend-item" style="margin-left: auto;"><span class="legend-symbol symbol-tree"></span> Tree (Spokes)</div>
+                            <div class="legend-item"><span class="legend-symbol symbol-shrub"></span> Shrub (Scalloped)</div>
+                            <div class="legend-item"><span class="legend-symbol symbol-perennial"></span> Perennial (Spiky)</div>
+                        </div>
+                    </section>
+
+                    <!-- Right: Plant List and Quantities -->
+                    <section class="panel placement-list-panel">
+                        <div class="panel-header">
+                            <h3>Visualizer Planting Schedule</h3>
+                            <span class="badge badge-emerald" id="visualizer-placement-count-badge">0 Plants Total</span>
+                        </div>
+                        <div class="placement-table-wrapper">
+                            <table class="placement-table">
+                                <thead>
+                                    <tr>
+                                        <th>Key</th>
+                                        <th>Botanical Name</th>
+                                        <th>Common Name</th>
+                                        <th>Quantity</th>
+                                        <th>Spacing</th>
+                                        <th>Est. Height</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="visualizer-placement-table-body">
+                                    <!-- Dynamic rows matching current filtered plants -->
                                 </tbody>
                             </table>
                         </div>
@@ -564,18 +614,19 @@
                     <table class="report-table">
                         <thead>
                             <tr>
+                                <th>Photo</th>
                                 <th>Genus</th>
                                 <th>Species</th>
                                 <th>Common Name</th>
                                 <th>Family</th>
-                                <th>Hardiness Zone</th>
+                                <th>Zone</th>
                                 <th>Light</th>
                                 <th>Moisture</th>
-                                <th>Root Pattern</th>
+                                <th>Root</th>
                                 <th>Height</th>
                                 <th>Width</th>
-                                <th>Growth Rate</th>
-                                <th>Edibility</th>
+                                <th>Growth</th>
+                                <th>Edible</th>
                             </tr>
                         </thead>
                         <tbody id="report-table-body">
@@ -601,13 +652,8 @@
                         
                         <!-- Search & Add Plants -->
                         <div class="custom-search-container">
-                            <div class="search-input-wrapper">
-                                <input type="text" id="custom-plant-search" placeholder="Search plants by name..." class="input-select" style="margin-bottom: 8px;">
-                            </div>
-                            <div class="select-wrapper">
-                                <select id="custom-plant-select" class="input-select" style="width: 100%;">
-                                    <option value="" disabled selected>Select a plant to add...</option>
-                                </select>
+                            <div class="custom-dropdown-container" id="custom-planner-dropdown-container">
+                                <!-- Custom dropdown will be initialized here -->
                             </div>
                             <button id="btn-custom-add-plant" class="btn btn-primary" style="width: 100%; margin-top: 8px;">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>

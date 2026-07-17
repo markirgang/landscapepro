@@ -506,7 +506,7 @@ input[type="text"].input-select {
     flex-grow: 1;
     display: grid;
     grid-template-columns: 280px 1fr;
-    overflow: hidden;
+    overflow: auto;
     min-height: 0;
 }
 
@@ -691,13 +691,15 @@ input[type="text"].input-select {
     align-items: center;
     justify-content: center;
     padding: 24px;
-    overflow: hidden;
+    overflow: auto;
 }
 
 .slider-container {
     position: relative;
     width: 100%;
     height: 100%;
+    min-width: 720px;
+    min-height: 450px;
     max-height: 480px;
     aspect-ratio: 16/10;
     border-radius: var(--radius-lg);
@@ -1406,7 +1408,7 @@ input[type="text"].input-select {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: auto;
     min-height: 0;
     padding: 24px 32px;
     gap: 20px;
@@ -1620,11 +1622,11 @@ input[type="text"].input-select {
 }
 
 .report-table {
-    width: max-content;
-    min-width: 100%;
+    width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 10px;
     text-align: left;
+    table-layout: auto;
 }
 
 .report-table th {
@@ -1634,18 +1636,113 @@ input[type="text"].input-select {
     color: var(--text-main);
     font-family: var(--font-heading);
     font-weight: 600;
-    padding: 8px 14px;
+    padding: 4px 6px;
     border-bottom: 2px solid var(--border-color);
     z-index: 5;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.1px;
     white-space: nowrap;
 }
 
 .report-table td {
-    padding: 8px 14px;
+    padding: 4px 6px;
     border-bottom: 1px solid var(--border-color);
     color: #e2e8f0;
     font-family: var(--font-body);
+    white-space: nowrap;
+}
+
+/* Tighten column widths to display horizontally without overflow */
+.report-table td:nth-child(1),
+.report-table th:nth-child(1) { /* Photo */
+    width: 42px;
+    text-align: center;
+}
+.report-table td:nth-child(2),
+.report-table th:nth-child(2) { /* Genus */
+    max-width: 65px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(3),
+.report-table th:nth-child(3) { /* Species */
+    max-width: 65px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(4),
+.report-table th:nth-child(4) { /* Common Name */
+    max-width: 95px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(5),
+.report-table th:nth-child(5) { /* Family */
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(6),
+.report-table th:nth-child(6) { /* Zone */
+    max-width: 55px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(7),
+.report-table th:nth-child(7) { /* Light */
+    max-width: 95px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.report-table td:nth-child(7) {
+    white-space: normal;
+}
+.report-table td:nth-child(8),
+.report-table th:nth-child(8) { /* Moisture */
+    max-width: 95px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.report-table td:nth-child(8) {
+    white-space: normal;
+}
+.report-table td:nth-child(9),
+.report-table th:nth-child(9) { /* Root */
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(10),
+.report-table th:nth-child(10) { /* Height */
+    max-width: 45px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(11),
+.report-table th:nth-child(11) { /* Width */
+    max-width: 45px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(12),
+.report-table th:nth-child(12) { /* Growth */
+    max-width: 55px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-table td:nth-child(13),
+.report-table th:nth-child(13) { /* Edibility */
+    max-width: 65px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
@@ -1672,10 +1769,10 @@ input[type="text"].input-select {
 .badge-zone {
     background: rgba(245, 158, 11, 0.15);
     color: #fbbf24;
-    padding: 1px 3px;
+    padding: 1px 2px;
     border-radius: 3px;
     font-weight: 600;
-    font-size: 9px;
+    font-size: 8px;
     display: inline-block;
     white-space: nowrap;
 }
@@ -1683,32 +1780,32 @@ input[type="text"].input-select {
 .badge-light {
     background: rgba(59, 130, 246, 0.15);
     color: #60a5fa;
-    padding: 1px 3px;
+    padding: 1px 2px;
     border-radius: 3px;
-    font-size: 9px;
+    font-size: 8px;
     display: inline-block;
-    margin: 1px;
+    margin: 0.5px;
     white-space: nowrap;
 }
 
 .badge-moisture {
     background: rgba(16, 185, 129, 0.15);
     color: #34d399;
-    padding: 1px 3px;
+    padding: 1px 2px;
     border-radius: 3px;
-    font-size: 9px;
+    font-size: 8px;
     display: inline-block;
-    margin: 1px;
+    margin: 0.5px;
     white-space: nowrap;
 }
 
 .badge-edible {
     background: rgba(236, 72, 153, 0.15);
     color: #f472b6;
-    padding: 1px 3px;
+    padding: 1px 2px;
     border-radius: 3px;
     font-weight: 500;
-    font-size: 9px;
+    font-size: 8px;
     display: inline-block;
     white-space: nowrap;
 }
@@ -1733,7 +1830,7 @@ input[type="text"].input-select {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: auto;
     min-height: 0;
     padding: 24px 32px;
     background-color: var(--bg-app);
@@ -1747,7 +1844,7 @@ input[type="text"].input-select {
     display: grid;
     grid-template-columns: 1.2fr 1fr;
     gap: 24px;
-    height: 100%;
+    min-height: 100%;
     align-items: stretch;
 }
 
@@ -1760,19 +1857,20 @@ input[type="text"].input-select {
 .placement-canvas-wrapper {
     flex-grow: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
     background: #f8fafc;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
     padding: 16px;
-    overflow: hidden;
+    overflow: auto;
     min-height: 350px;
 }
 
-#placement-canvas {
-    max-width: 100%;
-    max-height: 100%;
+#placement-canvas, #visualizer-placement-canvas {
+    margin: auto;
+    width: 800px;
+    height: 600px;
+    min-width: 800px;
+    min-height: 600px;
     background-color: #ffffff;
     border-radius: 4px;
     border: 1px solid #cbd5e1;
@@ -1854,7 +1952,7 @@ input[type="text"].input-select {
 
 .placement-table-wrapper {
     flex-grow: 1;
-    overflow-y: auto;
+    overflow: auto;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     background: rgba(0, 0, 0, 0.2);
@@ -1908,7 +2006,7 @@ input[type="text"].input-select {
         grid-template-columns: 1fr;
     }
     .placement-workspace {
-        overflow-y: auto;
+        overflow: auto;
     }
 }
 
@@ -1917,7 +2015,7 @@ input[type="text"].input-select {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: auto;
     min-height: 0;
     padding: 24px 32px;
     background-color: var(--bg-app);
@@ -2023,7 +2121,7 @@ input[type="text"].input-select {
 
 .custom-table-wrapper {
     flex-grow: 1;
-    overflow-y: auto;
+    overflow: auto;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     background: rgba(0, 0, 0, 0.1);
@@ -2086,8 +2184,217 @@ input[type="text"].input-select {
         grid-template-columns: 1fr;
     }
     .custom-planner-workspace {
-        overflow-y: auto;
+        overflow: auto;
     }
 }
 
+/* AI Visualizer Styles */
+.visualizer-workspace {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    min-height: 0;
+    padding: 24px 32px;
+    background-color: var(--bg-app);
+}
+
+#visualizer-canvas {
+    display: block;
+    margin: auto;
+    min-width: 800px;
+    min-height: 500px;
+    border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.visualizer-workspace.hidden {
+    display: none !important;
+}
+
+.visualizer-list-item:hover,
+.visualizer-list-item.hover-highlight {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border-color: currentColor !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
+}
+
+.visualizer-list-item {
+    transition: all 0.2s ease-in-out;
+}
+
+.report-plant-thumb {
+    transition: transform 0.2s ease;
+}
+
+.report-plant-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+/* Make sure the visualizer placement workspace hides correctly and has scrollbars when needed */
+#visualizer-placement-workspace {
+    overflow: auto !important;
+}
+
+#visualizer-placement-workspace.hidden {
+    display: none !important;
+}
+/* Custom Dropdown Styling */
+.custom-dropdown-container {
+    position: relative;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.custom-dropdown-btn {
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-size: 11px;
+    font-family: var(--font-body);
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 38px;
+    box-sizing: border-box;
+}
+
+.custom-dropdown-btn:hover {
+    border-color: var(--color-primary);
+    background: rgba(15, 23, 42, 0.8);
+}
+
+.custom-dropdown-btn .selected-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.custom-dropdown-btn .selected-img {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.custom-dropdown-btn .chevron {
+    transition: transform 0.2s ease;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.custom-dropdown-container.open .custom-dropdown-btn .chevron {
+    transform: rotate(180deg);
+}
+
+.custom-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 260px;
+    background: #171d26;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    margin-top: 4px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    display: none;
+    flex-direction: column;
+}
+
+.custom-dropdown-container.open .custom-dropdown-menu {
+    display: flex;
+}
+
+.custom-dropdown-search-wrapper {
+    padding: 6px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.custom-dropdown-search-input {
+    width: 100%;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    font-size: 11px;
+    box-sizing: border-box;
+}
+
+.custom-dropdown-search-input:focus {
+    border-color: var(--color-primary);
+    outline: none;
+}
+
+.custom-dropdown-list {
+    overflow-y: auto;
+    max-height: 200px;
+}
+
+.custom-dropdown-item {
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.custom-dropdown-item:hover {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.custom-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.custom-dropdown-item img {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.custom-dropdown-item .item-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.custom-dropdown-item .item-names {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.custom-dropdown-item .item-names em {
+    font-style: italic;
+    color: var(--text-main);
+}
+
+.custom-dropdown-item .item-common {
+    font-size: 9px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
