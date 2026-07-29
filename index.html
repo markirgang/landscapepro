@@ -186,12 +186,12 @@
                             <p id="header-main-sub" class="header-sub">Upload your space and let AI design the perfect landscape.</p>
                         </div>
                         <div class="nav-tabs">
-                            <button id="tab-designer" class="nav-tab active">Garden Designer</button>
+                            <button id="tab-report" class="nav-tab active">US Plant Guide</button>
+                            <button id="tab-designer" class="nav-tab">Garden Designer</button>
                             <button id="tab-visualizer" class="nav-tab">AI Visualizer</button>
                             <button id="tab-visualizer-placement" class="nav-tab">Visualizer Placement</button>
                             <button id="tab-placement" class="nav-tab">Placement Diagram</button>
                             <button id="tab-custom-planner" class="nav-tab">Custom Planner</button>
-                            <button id="tab-report" class="nav-tab">US Plant Report</button>
                         </div>
                     </div>
                 </div>
@@ -243,7 +243,7 @@
             </header>
 
             <!-- Workspace Grid -->
-            <div class="workspace-grid" id="designer-workspace">
+            <div class="workspace-grid hidden" id="designer-workspace">
                 <!-- Left: Upload and Image Selector -->
                 <section class="panel upload-panel">
                     <div class="panel-header">
@@ -515,8 +515,28 @@
                 </div>
             </div>
 
-            <!-- Report Container (Hidden by default) -->
-            <div class="report-workspace hidden" id="report-workspace">
+            <!-- Report Container (Shown by default on first tab) -->
+            <div class="report-workspace" id="report-workspace">
+                <!-- Site Geographical Location & GPS Picker Header Bar -->
+                <div class="report-location-bar" style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 18px 22px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 18px;">
+                    <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 300px;">
+                        <label for="report-address-input" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--color-primary); display: flex; align-items: center; gap: 6px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                            Site Geographical Address & Location
+                        </label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="report-address-input" class="input-select" placeholder="Type street address, city, or ZIP code (e.g. 90210, Beverly Hills)..." style="flex: 1; padding: 10px 14px; font-size: 13px;">
+                            <button id="btn-report-gps" class="btn btn-secondary" title="Detect location using device GPS" style="white-space: nowrap; display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-weight: 600; background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3); color: var(--color-primary);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 1 0 10 10"/><path d="m12 8 4 4-4 4"/><path d="M8 12h8"/></svg>
+                                📍 Use GPS Location
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span id="report-location-badge" class="badge badge-emerald" style="padding: 8px 14px; font-size: 12px; font-weight: 600;">Zone Detected: Any</span>
+                    </div>
+                </div>
+
                 <!-- Selected Plant Details Card -->
                 <div class="report-detail-card" id="report-detail-card">
                     <div class="detail-info-pane">
@@ -554,6 +574,16 @@
                         </button>
                     </div>
                     <div class="report-filter-selects">
+                        <div class="filter-field">
+                            <label for="filter-priority">Selection Priority</label>
+                            <select id="filter-priority" class="input-select">
+                                <option value="any" selected>All Plants</option>
+                                <option value="prioritized">Prioritized Only</option>
+                                <option value="high">⭐ High Priority</option>
+                                <option value="medium">🔹 Medium Priority</option>
+                                <option value="low">🔸 Low Priority</option>
+                            </select>
+                        </div>
                         <div class="filter-field">
                             <label for="filter-ph">Soil pH</label>
                             <select id="filter-ph" class="input-select">
@@ -614,6 +644,7 @@
                     <table class="report-table">
                         <thead>
                             <tr>
+                                <th style="width: 140px;">Priority</th>
                                 <th>Photo</th>
                                 <th>Genus</th>
                                 <th>Species</th>

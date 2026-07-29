@@ -48,8 +48,23 @@ const state = {
     },
     settingsDirty: false,
     customPlants: [],
-    addedPlacementPlants: []
+    addedPlacementPlants: [],
+    plantPriorities: (() => {
+        try {
+            return JSON.parse(localStorage.getItem('landscape_plant_priorities') || '{}');
+        } catch (e) {
+            return {};
+        }
+    })()
 };
+
+function savePlantPriorities() {
+    try {
+        localStorage.setItem('landscape_plant_priorities', JSON.stringify(state.plantPriorities || {}));
+    } catch (e) {
+        console.warn('Unable to save plant priorities to localStorage:', e);
+    }
+}
 
 // UI Elements
 const addressInput = document.getElementById('address-input');
@@ -224,6 +239,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initLinkImport();
     initDimensionsAndSeason();
     initSettingsDirtyListeners();
+    initReportLocationControls();
     initReportPage();
     initAiCredentials();
     initPlacementExport();
@@ -4176,12 +4192,16 @@ function initReportPage() {
     }
 
     tabReport.addEventListener('click', () => {
-        activateTab(tabReport, reportWorkspace, reportHeaderActions, false, "US Botanical Plant Report", "A comprehensive database of landscaping and garden plants in the United States.");
+        activateTab(tabReport, reportWorkspace, reportHeaderActions, false, "US Botanical Plant Guide", "Select geographical address, choose plant priorities, and filter plants for AI Visualizations.");
         renderReportTable(); // Trigger render on activation
     });
 
+    // Default startup tab: US Plant Guide
+    activateTab(tabReport, reportWorkspace, reportHeaderActions, false, "US Botanical Plant Guide", "Select geographical address, choose plant priorities, and filter plants for AI Visualizations.");
+
     // Add listeners for filters
-    const reportFilters = [reportSearch, filterPh, filterZone, filterLight, filterMoisture, filterEdibility];
+    const filterPriority = document.getElementById('filter-priority');
+    const reportFilters = [reportSearch, filterPriority, filterPh, filterZone, filterLight, filterMoisture, filterEdibility];
     reportFilters.forEach(f => {
         if (f) {
             f.addEventListener('input', renderReportTable);
@@ -4293,9 +4313,118 @@ function initReportPage() {
     }
 }
 
+// Geographical Location and GPS Picker Controls
+function initReportLocationControls() {
+    const addressInput = document.getElementById('report-address-input');
+    const btnGps = document.getElementById('btn-report-gps');
+    const badge = document.getElementById('report-location-badge');
+    const filterZone = document.getElementById('filter-zone');
+
+    if (!addressInput || !btnGps || !filterZone) return;
+
+    function updateLocationFromText(text) {
+        const cleaned = text.trim();
+        if (!cleaned) return;
+        state.currentAddress = cleaned;
+
+        const zipMatch = cleaned.match(/\b\d{5}\b/);
+        let foundZone = null;
+        let detectedInfo = '';
+
+        if (zipMatch && state.zipCodes[zipMatch[0]]) {
+            const zipInfo = state.zipCodes[zipMatch[0]];
+            foundZone = zipInfo.zone;
+            detectedInfo = `${zipInfo.climate} (${zipInfo.zone})`;
+        } else {
+            const lower = cleaned.toLowerCase();
+            if (lower.includes('miami') || lower.includes('honolulu') || lower.includes('key west')) foundZone = '11a';
+            else if (lower.includes('los angeles') || lower.includes('san diego') || lower.includes('phoenix') || lower.includes('orlando')) foundZone = '10a';
+            else if (lower.includes('sacramento') || lower.includes('austin') || lower.includes('dallas') || lower.includes('houston')) foundZone = '9b';
+            else if (lower.includes('portland') || lower.includes('seattle') || lower.includes('atlanta')) foundZone = '8b';
+            else if (lower.includes('new york') || lower.includes('washington') || lower.includes('charlotte')) foundZone = '7b';
+            else if (lower.includes('chicago') || lower.includes('boston') || lower.includes('st. louis')) foundZone = '6a';
+            else if (lower.includes('denver') || lower.includes('minneapolis')) foundZone = '5b';
+        }
+
+        if (foundZone) {
+            const numericZone = parseInt(foundZone) || 7;
+            filterZone.value = String(numericZone);
+            if (badge) {
+                badge.textContent = `Zone Detected: Zone ${foundZone} ${detectedInfo ? '• ' + detectedInfo : ''}`;
+            }
+            renderReportTable();
+        } else {
+            if (badge) {
+                badge.textContent = `Site Location Set: ${cleaned}`;
+            }
+        }
+    }
+
+    addressInput.addEventListener('change', (e) => {
+        updateLocationFromText(e.target.value);
+    });
+
+    addressInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            updateLocationFromText(e.target.value);
+        }
+    });
+
+    btnGps.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser.');
+            return;
+        }
+
+        const originalBtnHTML = btnGps.innerHTML;
+        btnGps.innerHTML = `<span class="loading-spinner" style="display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite;"></span> Locating...`;
+        btnGps.disabled = true;
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                btnGps.disabled = false;
+                btnGps.innerHTML = originalBtnHTML;
+
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+
+                let estZoneNum = 7;
+                let zoneStr = '7b';
+                if (lat > 45) { estZoneNum = 4; zoneStr = '4b'; }
+                else if (lat > 41) { estZoneNum = 5; zoneStr = '5b'; }
+                else if (lat > 37) { estZoneNum = 6; zoneStr = '6b'; }
+                else if (lat > 33) { estZoneNum = 7; zoneStr = '7b'; }
+                else if (lat > 29) { estZoneNum = 8; zoneStr = '8b'; }
+                else if (lat > 26) { estZoneNum = 9; zoneStr = '9b'; }
+                else { estZoneNum = 10; zoneStr = '10a'; }
+
+                const gpsAddrStr = `GPS Site: ${lat.toFixed(4)}° N, ${Math.abs(lon).toFixed(4)}° W`;
+                addressInput.value = gpsAddrStr;
+                state.currentAddress = gpsAddrStr;
+
+                filterZone.value = String(estZoneNum);
+                if (badge) {
+                    badge.textContent = `📍 GPS Active: Zone ${zoneStr} (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`;
+                    badge.style.background = 'rgba(16, 185, 129, 0.2)';
+                }
+
+                renderReportTable();
+            },
+            (err) => {
+                btnGps.disabled = false;
+                btnGps.innerHTML = originalBtnHTML;
+                console.warn('GPS location request failed or denied:', err);
+                alert('GPS location check: ' + (err.message || 'Location access denied or unavailable. You can enter your address or zip manually.'));
+            },
+            { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+        );
+    });
+}
+
 // Render filtered plants into table
 function renderReportTable() {
     const reportSearch = document.getElementById('report-search');
+    const filterPriority = document.getElementById('filter-priority');
     const filterPh = document.getElementById('filter-ph');
     const filterZone = document.getElementById('filter-zone');
     const filterLight = document.getElementById('filter-light');
@@ -4312,15 +4441,25 @@ function renderReportTable() {
     clearPlantDetailCard();
 
     // Get filter states
-    const query = reportSearch.value.trim().toLowerCase();
-    const phVal = filterPh.value;
-    const zoneVal = filterZone.value;
-    const lightVal = filterLight.value;
-    const moistureVal = filterMoisture.value;
-    const edibilityVal = filterEdibility.value;
+    const query = reportSearch ? reportSearch.value.trim().toLowerCase() : '';
+    const priorityVal = filterPriority ? filterPriority.value : 'any';
+    const phVal = filterPh ? filterPh.value : 'any';
+    const zoneVal = filterZone ? filterZone.value : 'any';
+    const lightVal = filterLight ? filterLight.value : 'any';
+    const moistureVal = filterMoisture ? filterMoisture.value : 'any';
+    const edibilityVal = filterEdibility ? filterEdibility.value : 'any';
 
     // Filter plants
-    const filtered = PLANTS_DATA.filter(plant => {
+    let filtered = PLANTS_DATA.filter(plant => {
+        const plantKey = plant.genus + '_' + plant.species;
+        const prio = state.plantPriorities ? (state.plantPriorities[plantKey] || 'none') : 'none';
+
+        // Selection Priority filter
+        if (priorityVal === 'prioritized' && prio === 'none') return false;
+        if (priorityVal === 'high' && prio !== 'high') return false;
+        if (priorityVal === 'medium' && prio !== 'medium') return false;
+        if (priorityVal === 'low' && prio !== 'low') return false;
+
         // Text search (genus, species, name, family)
         if (query) {
             const matchesQuery = 
@@ -4342,20 +4481,18 @@ function renderReportTable() {
         // Hardiness Zone filter
         if (zoneVal !== 'any') {
             const zNum = parseInt(zoneVal);
-            // Parse zone range "X-Y"
             const match = plant.zone.match(/(\d+)\s*-\s*(\d+)/);
             if (match) {
                 const minZ = parseInt(match[1]);
                 const maxZ = parseInt(match[2]);
                 if (zNum < minZ || zNum > maxZ) return false;
             } else {
-                // Single zone check
                 const singleZ = parseInt(plant.zone);
                 if (singleZ !== zNum) return false;
             }
         }
 
-        // Light exposure filter (partial match e.g. "Full Sun, Partial Shade")
+        // Light exposure filter
         if (lightVal !== 'any') {
             if (!plant.light.includes(lightVal)) return false;
         }
@@ -4375,17 +4512,57 @@ function renderReportTable() {
         return true;
     });
 
+    // Sort filtered plants by priority (high -> medium -> low -> none)
+    const prioWeight = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+    filtered.sort((a, b) => {
+        const keyA = a.genus + '_' + a.species;
+        const keyB = b.genus + '_' + b.species;
+        const weightA = prioWeight[state.plantPriorities[keyA] || 'none'] || 0;
+        const weightB = prioWeight[state.plantPriorities[keyB] || 'none'] || 0;
+        return weightB - weightA;
+    });
+
     // Clear and build tbody
     tbody.innerHTML = '';
     
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: var(--text-muted); padding: 30px;">No matching plants found in the database.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: var(--text-muted); padding: 30px;">No matching plants found in the database.</td></tr>`;
         countLabel.textContent = `Showing 0 of ${PLANTS_DATA.length} plants`;
         return;
     }
 
     filtered.forEach(plant => {
         const tr = document.createElement('tr');
+        const plantKey = plant.genus + '_' + plant.species;
+        const currentPrio = state.plantPriorities[plantKey] || 'none';
+        
+        // Priority Select Column
+        const tdPriority = document.createElement('td');
+        const selectPriority = document.createElement('select');
+        selectPriority.className = 'priority-select input-select';
+        selectPriority.dataset.priority = currentPrio;
+        selectPriority.innerHTML = `
+            <option value="none" ${currentPrio === 'none' ? 'selected' : ''}>-- None</option>
+            <option value="high" ${currentPrio === 'high' ? 'selected' : ''}>⭐ High</option>
+            <option value="medium" ${currentPrio === 'medium' ? 'selected' : ''}>🔹 Medium</option>
+            <option value="low" ${currentPrio === 'low' ? 'selected' : ''}>🔸 Low</option>
+        `;
+        selectPriority.addEventListener('change', (e) => {
+            e.stopPropagation();
+            const newPrio = e.target.value;
+            selectPriority.dataset.priority = newPrio;
+            state.plantPriorities[plantKey] = newPrio;
+            savePlantPriorities();
+            
+            // Immediately re-render visualizer if visible
+            const visWs = document.getElementById('visualizer-workspace');
+            if (visWs && !visWs.classList.contains('hidden') && typeof renderVisualizerPage === 'function') {
+                renderVisualizerPage();
+            }
+        });
+        selectPriority.addEventListener('click', (e) => e.stopPropagation());
+        tdPriority.appendChild(selectPriority);
+        tr.appendChild(tdPriority);
         
         // Photo
         const tdPhoto = document.createElement('td');
@@ -5899,7 +6076,7 @@ function getFilteredPlants() {
     const moistureVal = filterMoisture ? filterMoisture.value : 'any';
     const edibilityVal = filterEdibility ? filterEdibility.value : 'any';
 
-    return PLANTS_DATA.filter(plant => {
+    const filtered = PLANTS_DATA.filter(plant => {
         if (query) {
             const matchesQuery = 
                 plant.genus.toLowerCase().includes(query) ||
@@ -5945,12 +6122,31 @@ function getFilteredPlants() {
 
         return true;
     });
+
+    const prioWeight = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+    filtered.sort((a, b) => {
+        const keyA = a.genus + '_' + a.species;
+        const keyB = b.genus + '_' + b.species;
+        const weightA = prioWeight[state.plantPriorities ? (state.plantPriorities[keyA] || 'none') : 'none'] || 0;
+        const weightB = prioWeight[state.plantPriorities ? (state.plantPriorities[keyB] || 'none') : 'none'] || 0;
+        return weightB - weightA;
+    });
+
+    return filtered;
 }
 
-// Generate shared blueprint placement schedule and coordinates for the top 8 filtered plants
+// Generate shared blueprint placement schedule and coordinates for the prioritized plants
 function getVisualizerModel() {
     const filtered = getFilteredPlants();
-    const selectedPlants = filtered.slice(0, 8);
+    
+    // Pick user-prioritized plants first if present
+    const prioritizedOnly = filtered.filter(p => {
+        const key = p.genus + '_' + p.species;
+        const prio = state.plantPriorities ? state.plantPriorities[key] : null;
+        return prio && prio !== 'none';
+    });
+
+    const selectedPlants = (prioritizedOnly.length > 0 ? prioritizedOnly : filtered).slice(0, 8);
     const colors = ["#ef4444", "#3b82f6", "#10b981", "#eab308", "#ec4899", "#8b5cf6", "#f97316", "#06b6d4"];
     const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     

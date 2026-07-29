@@ -2398,3 +2398,41 @@ input[type="text"].input-select {
     text-overflow: ellipsis;
 }
 
+/* Priority Column Select Options in Report Table */
+.priority-select {
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: rgba(30, 41, 59, 0.8);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.priority-select[data-priority="high"] {
+    background-color: rgba(234, 179, 8, 0.15);
+    border-color: rgba(234, 179, 8, 0.5);
+    color: #fde047;
+}
+
+.priority-select[data-priority="medium"] {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
+}
+
+.priority-select[data-priority="low"] {
+    background-color: rgba(249, 115, 22, 0.15);
+    border-color: rgba(249, 115, 22, 0.5);
+    color: #fdba74;
+}
+
+.priority-select[data-priority="none"] {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
