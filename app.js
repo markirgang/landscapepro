@@ -244,6 +244,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initAiCredentials();
     initPlacementExport();
     initPlacementPage();
+    initPlantDiagramModal();
     initCustomPlannerPage();
     initVisualizerInteraction();
     initVisualizerExport();
@@ -4094,15 +4095,12 @@ function getCombinedPhRangeText(plant) {
 // Global initialization of Report Page
 function initReportPage() {
     const tabDesigner = document.getElementById('tab-designer');
-    const tabPlacement = document.getElementById('tab-placement');
     const tabReport = document.getElementById('tab-report');
     
     const designerWorkspace = document.getElementById('designer-workspace');
-    const placementWorkspace = document.getElementById('placement-workspace');
     const reportWorkspace = document.getElementById('report-workspace');
     
     const designerHeaderActions = document.getElementById('designer-header-actions');
-    const placementHeaderActions = document.getElementById('placement-header-actions');
     const reportHeaderActions = document.getElementById('report-header-actions');
     
     const sidebar = document.querySelector('.sidebar');
@@ -4122,19 +4120,12 @@ function initReportPage() {
     const customPlannerWorkspace = document.getElementById('custom-planner-workspace');
     const customHeaderActions = document.getElementById('custom-header-actions');
 
-    const tabVisualizer = document.getElementById('tab-visualizer');
-    const tabVisualizerPlacement = document.getElementById('tab-visualizer-placement');
-    const visualizerWorkspace = document.getElementById('visualizer-workspace');
-    const visualizerPlacementWorkspace = document.getElementById('visualizer-placement-workspace');
-    const visualizerHeaderActions = document.getElementById('visualizer-header-actions');
-    const visualizerPlacementHeaderActions = document.getElementById('visualizer-placement-header-actions');
-
     if (!tabDesigner || !tabReport || !reportWorkspace) return;
 
     // View Toggling logic using a unified helper
-    const allTabs = [tabDesigner, tabVisualizer, tabVisualizerPlacement, tabPlacement, tabCustomPlanner, tabReport];
-    const allWorkspaces = [designerWorkspace, visualizerWorkspace, visualizerPlacementWorkspace, placementWorkspace, customPlannerWorkspace, reportWorkspace];
-    const allHeaderActions = [designerHeaderActions, visualizerHeaderActions, visualizerPlacementHeaderActions, placementHeaderActions, customHeaderActions, reportHeaderActions];
+    const allTabs = [tabDesigner, tabCustomPlanner, tabReport];
+    const allWorkspaces = [designerWorkspace, customPlannerWorkspace, reportWorkspace];
+    const allHeaderActions = [designerHeaderActions, customHeaderActions, reportHeaderActions];
     
     function activateTab(activeTab, activeWorkspace, activeHeaderActions, showSidebar = false, title = "", sub = "") {
         allTabs.forEach(t => t && t.classList.remove('active'));
@@ -4158,27 +4149,6 @@ function initReportPage() {
     tabDesigner.addEventListener('click', () => {
         activateTab(tabDesigner, designerWorkspace, designerHeaderActions, true, "Garden Canvas", "Upload your space and let AI design the perfect landscape.");
     });
-
-    if (tabVisualizer) {
-        tabVisualizer.addEventListener('click', () => {
-            activateTab(tabVisualizer, visualizerWorkspace, visualizerHeaderActions, false, "AI Visualizer", "Visualizing filtered plant species overlaid on your garden space.");
-            renderVisualizerPage();
-        });
-    }
-
-    if (tabVisualizerPlacement) {
-        tabVisualizerPlacement.addEventListener('click', () => {
-            activateTab(tabVisualizerPlacement, visualizerPlacementWorkspace, visualizerPlacementHeaderActions, false, "Visualizer Planting Blueprint", "A top-down blueprint map showing positions and quantities of the filtered plants.");
-            renderVisualizerPlacementPage();
-        });
-    }
-
-    if (tabPlacement) {
-        tabPlacement.addEventListener('click', () => {
-            activateTab(tabPlacement, placementWorkspace, placementHeaderActions, false, "Placement Diagram & Planting Schedule", "A top-down blueprint map showing plant positions and quantities matching the active AI Concept.");
-            renderPlacementPage();
-        });
-    }
 
     if (tabCustomPlanner) {
         tabCustomPlanner.addEventListener('click', () => {
@@ -5181,6 +5151,110 @@ function initPlacementExport() {
         a.click();
         document.body.removeChild(a);
     });
+}
+
+function initPlantDiagramModal() {
+    const btnGenerate = document.getElementById('btn-generate-plant-list-diagram');
+    const modal = document.getElementById('plant-diagram-modal');
+    const btnClose = document.getElementById('btn-close-plant-modal');
+    const canvas = document.getElementById('modal-placement-canvas');
+    const tableBody = document.getElementById('modal-plant-table-body');
+    const titleElem = document.getElementById('modal-concept-title');
+    const subTitleElem = document.getElementById('modal-concept-subtitle');
+    const gridBadge = document.getElementById('modal-grid-badge');
+    const countBadge = document.getElementById('modal-plant-count-badge');
+    
+    const btnExportCsv = document.getElementById('btn-modal-export-csv');
+    const btnExportPng = document.getElementById('btn-modal-export-png');
+    const btnOpenFullTab = document.getElementById('btn-modal-open-full-tab');
+
+    if (!btnGenerate || !modal) return;
+
+    btnGenerate.addEventListener('click', () => {
+        // Active concept title
+        const conceptTab = document.querySelector('.concept-tab.active');
+        const conceptName = conceptTab ? conceptTab.textContent : 'Garden Visualization Concept';
+        if (titleElem) titleElem.textContent = `Planting Schedule & Placement - ${conceptName}`;
+        
+        // Dimensions
+        const lengthVal = areaLengthInput ? areaLengthInput.value : 20;
+        const widthVal = areaWidthInput ? areaWidthInput.value : 15;
+        if (gridBadge) gridBadge.textContent = `${lengthVal}' x ${widthVal}' Grid`;
+        
+        const model = getPlacementModel();
+        if (countBadge) countBadge.textContent = `${model.totalQty} Plants Total`;
+        
+        if (canvas) {
+            drawPlacementBlueprint(canvas, model);
+        }
+        
+        if (tableBody) {
+            tableBody.innerHTML = '';
+            model.schedule.forEach(group => {
+                const tr = document.createElement('tr');
+                const layerName = group.type === 'tree' ? 'Background (Tall)' : (group.type === 'shrub' ? 'Midground (Clump)' : 'Foreground / Border');
+                tr.innerHTML = `
+                    <td>
+                        <span class="plant-key-badge" style="background-color: ${group.color}; color: #0f172a; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
+                            ${group.symbol}
+                        </span>
+                    </td>
+                    <td style="font-weight: 600; color: var(--text-main);">${group.name}</td>
+                    <td style="font-family: var(--font-heading); font-style: italic; color: var(--text-muted);">${group.genus} ${group.species}</td>
+                    <td><span class="badge" style="font-size: 10px;">${layerName}</span></td>
+                    <td style="font-weight: 700; color: var(--color-primary);">${group.quantity}</td>
+                    <td>${group.spacing}</td>
+                    <td>${group.height}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        modal.classList.remove('hidden');
+    });
+
+    if (btnClose) {
+        btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+    }
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+    });
+
+    if (btnExportCsv) {
+        btnExportCsv.addEventListener('click', () => {
+            const model = getPlacementModel();
+            let csv = 'Key,Common Name,Botanical Name,Layer,Quantity,Spacing,Height\n';
+            model.schedule.forEach(group => {
+                const layerName = group.type === 'tree' ? 'Background (Tall)' : (group.type === 'shrub' ? 'Midground (Clump)' : 'Foreground / Border');
+                csv += `"${group.symbol}","${group.name}","${group.genus} ${group.species}","${layerName}",${group.quantity},"${group.spacing}","${group.height}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `LandscapePro_Plant_Schedule.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    }
+
+    if (btnExportPng) {
+        btnExportPng.addEventListener('click', () => {
+            if (!canvas) return;
+            const url = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `LandscapePro_Placement_Blueprint.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+    }
+
+
 }
 
 // -------------------------------------------------------------

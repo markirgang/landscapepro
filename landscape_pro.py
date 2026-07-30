@@ -371,6 +371,10 @@ class LandscapeProApp(ctk.CTk):
         self.opt_export_format.pack(side="left", padx=5)
         self.opt_export_format.set("PNG")
         
+        self.btn_plant_diagram = ctk.CTkButton(self.export_frame, text="📋 Plant List & Diagram", width=160,
+                                               fg_color="#059669", hover_color="#047857", command=self.show_plant_diagram_window)
+        self.btn_plant_diagram.pack(side="left", padx=5)
+        
         self.btn_export = ctk.CTkButton(self.export_frame, text="💾 Export Design", width=120, command=self.export_design)
         self.btn_export.pack(side="right")
         
@@ -692,6 +696,99 @@ class LandscapeProApp(ctk.CTk):
             messagebox.showinfo("Export Success", f"Successfully exported design to:\n{save_path}")
         except Exception as e:
             messagebox.showerror("Export Error", f"Failed to export design:\n{e}")
+
+    def show_plant_diagram_window(self):
+        top = ctk.CTkToplevel(self)
+        top.title("Planting Schedule & Placement Diagram - LandscapePro")
+        top.geometry("920x620")
+        top.grab_set()
+        
+        # Header
+        lbl_title = ctk.CTkLabel(top, text="🌿 Planting Schedule & 2D Spatial Diagram", font=("Outfit", 18, "bold"))
+        lbl_title.pack(anchor="w", padx=20, pady=(15, 5))
+        
+        lbl_sub = ctk.CTkLabel(top, text=f"Active Concept: {self.concept_selector.get()} | Soil: {self.opt_soil.get()} | Sun: {self.opt_sun.get()}", font=("Outfit", 12), text_color="#94a3b8")
+        lbl_sub.pack(anchor="w", padx=20, pady=(0, 10))
+        
+        # Main content grid
+        main_frame = ctk.CTkFrame(top, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=5)
+        
+        # Left: Diagram Canvas
+        left_frame = ctk.CTkFrame(main_frame, fg_color="#1e293b")
+        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        
+        lbl_diagram_title = ctk.CTkLabel(left_frame, text="2D Spatial Placement Map (20' x 15' Bed)", font=("Outfit", 13, "bold"))
+        lbl_diagram_title.pack(anchor="w", padx=15, pady=10)
+        
+        diag_canvas = tk.Canvas(left_frame, bg="#090d16", highlightthickness=0)
+        diag_canvas.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        
+        # Right: Plant Schedule List
+        right_frame = ctk.CTkFrame(main_frame, fg_color="#1e293b", width=420)
+        right_frame.pack(side="right", fill="both", expand=False)
+        right_frame.pack_propagate(False)
+        
+        lbl_table_title = ctk.CTkLabel(right_frame, text="Itemized Plant Species & Schedule", font=("Outfit", 13, "bold"))
+        lbl_table_title.pack(anchor="w", padx=15, pady=10)
+        
+        scroll_list = ctk.CTkScrollableFrame(right_frame, fg_color="transparent")
+        scroll_list.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        
+        # Sample generated plants for current concept
+        plants_schedule = [
+            {"symbol": "A", "color": "#3b82f6", "name": "Delphinium elatum (Larkspur)", "layer": "Background", "qty": 5, "spacing": "2.5 ft", "pos": [(60, 50), (120, 50), (180, 50), (240, 50), (300, 50)]},
+            {"symbol": "B", "color": "#10b981", "name": "Lavandula angustifolia (English Lavender)", "layer": "Midground", "qty": 8, "spacing": "1.5 ft", "pos": [(50, 130), (100, 130), (150, 130), (200, 130), (250, 130), (300, 130), (350, 130), (400, 130)]},
+            {"symbol": "C", "color": "#8b5cf6", "name": "Echinacea purpurea (Purple Coneflower)", "layer": "Midground", "qty": 6, "spacing": "1.8 ft", "pos": [(80, 200), (140, 200), (200, 200), (260, 200), (320, 200), (380, 200)]},
+            {"symbol": "D", "color": "#f59e0b", "name": "Salvia nemorosa (Meadow Sage)", "layer": "Border", "qty": 10, "spacing": "1.0 ft", "pos": [(40, 270), (80, 270), (120, 270), (160, 270), (200, 270), (240, 270), (280, 270), (320, 270), (360, 270), (400, 270)]}
+        ]
+        
+        for item in plants_schedule:
+            card = ctk.CTkFrame(scroll_list, fg_color="#0f172a", corner_radius=6)
+            card.pack(fill="x", pady=4, padx=2)
+            
+            lbl_key = ctk.CTkLabel(card, text=item["symbol"], width=28, height=28, fg_color=item["color"], text_color="#0f172a", font=("Outfit", 12, "bold"), corner_radius=4)
+            lbl_key.pack(side="left", padx=8, pady=8)
+            
+            info_frame = ctk.CTkFrame(card, fg_color="transparent")
+            info_frame.pack(side="left", fill="both", expand=True, padx=5, pady=4)
+            
+            lbl_pname = ctk.CTkLabel(info_frame, text=item["name"], font=("Outfit", 11, "bold"), anchor="w")
+            lbl_pname.pack(fill="x")
+            
+            lbl_details = ctk.CTkLabel(info_frame, text=f"Layer: {item['layer']} | Qty: {item['qty']} | Spacing: {item['spacing']}", font=("Outfit", 10), text_color="#94a3b8", anchor="w")
+            lbl_details.pack(fill="x")
+            
+        # Draw on canvas after window layout settles
+        def draw_diagram():
+            diag_canvas.update()
+            cw = diag_canvas.winfo_width() or 400
+            ch = diag_canvas.winfo_height() or 300
+            diag_canvas.delete("all")
+            
+            # Grid background
+            grid_size = 30
+            for x in range(0, cw, grid_size):
+                diag_canvas.create_line(x, 0, x, ch, fill="#1e293b", width=1)
+            for y in range(0, ch, grid_size):
+                diag_canvas.create_line(0, y, cw, y, fill="#1e293b", width=1)
+                
+            # Garden bed boundary
+            diag_canvas.create_rectangle(20, 20, cw - 20, ch - 20, outline="#10b981", width=2, dash=(4, 4))
+            
+            # Draw plants
+            for item in plants_schedule:
+                color = item["color"]
+                sym = item["symbol"]
+                for (px, py) in item["pos"]:
+                    # Scale positions to canvas width/height
+                    sx = int((px / 450.0) * (cw - 60)) + 30
+                    sy = int((py / 320.0) * (ch - 60)) + 30
+                    r = 14
+                    diag_canvas.create_oval(sx - r, sy - r, sx + r, sy + r, fill=color, outline="#ffffff", width=1.5)
+                    diag_canvas.create_text(sx, sy, text=sym, fill="#0f172a", font=("Helvetica", 10, "bold"))
+                    
+        top.after(100, draw_diagram)
 
 def main():
     # Run the application
