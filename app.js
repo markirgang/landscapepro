@@ -968,6 +968,14 @@ function initTabs() {
                 return;
             }
             updateActiveVisualization();
+
+            // Sync plant list and custom planner matching selected active concept
+            if (typeof loadCustomLayoutFromActiveConcept === 'function') {
+                loadCustomLayoutFromActiveConcept();
+            }
+            if (typeof renderReportTable === 'function') {
+                renderReportTable();
+            }
         });
     });
 }
@@ -4016,6 +4024,14 @@ function markSettingsDirty() {
     if (overlay) {
         overlay.classList.remove('hidden');
     }
+
+    // Automatically sync custom planner and report guide with active visualizer settings
+    if (typeof loadCustomLayoutFromActiveConcept === 'function') {
+        loadCustomLayoutFromActiveConcept();
+    }
+    if (typeof renderReportTable === 'function') {
+        renderReportTable();
+    }
 }
 
 function clearSettingsDirty() {
@@ -4529,14 +4545,25 @@ function renderReportTable() {
         return true;
     });
 
-    // Sort filtered plants by priority (high -> medium -> low -> none)
+    // Retrieve active visualizer concept placement model
+    let conceptPlantKeys = new Set();
+    try {
+        const activeModel = getPlacementModel();
+        if (activeModel && activeModel.schedule) {
+            activeModel.schedule.forEach(p => conceptPlantKeys.add(p.genus + '_' + p.species));
+        }
+    } catch (e) {}
+
+    // Sort filtered plants by concept match first, then priority
     const prioWeight = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
     filtered.sort((a, b) => {
         const keyA = a.genus + '_' + a.species;
         const keyB = b.genus + '_' + b.species;
+        const inConceptA = conceptPlantKeys.has(keyA) ? 10 : 0;
+        const inConceptB = conceptPlantKeys.has(keyB) ? 10 : 0;
         const weightA = prioWeight[state.plantPriorities[keyA] || 'none'] || 0;
         const weightB = prioWeight[state.plantPriorities[keyB] || 'none'] || 0;
-        return weightB - weightA;
+        return (inConceptB + weightB) - (inConceptA + weightA);
     });
 
     // Clear and build tbody
@@ -4552,7 +4579,12 @@ function renderReportTable() {
         const tr = document.createElement('tr');
         const plantKey = plant.genus + '_' + plant.species;
         const currentPrio = state.plantPriorities[plantKey] || 'none';
+        const isConceptPlant = conceptPlantKeys.has(plantKey);
         
+        if (isConceptPlant) {
+            tr.style.background = 'rgba(16, 185, 129, 0.05)';
+        }
+
         // Priority Select Column
         const tdPriority = document.createElement('td');
         const selectPriority = document.createElement('select');
@@ -4570,12 +4602,6 @@ function renderReportTable() {
             selectPriority.dataset.priority = newPrio;
             state.plantPriorities[plantKey] = newPrio;
             savePlantPriorities();
-            
-            // Immediately re-render visualizer if visible
-            const visWs = document.getElementById('visualizer-workspace');
-            if (visWs && !visWs.classList.contains('hidden') && typeof renderVisualizerPage === 'function') {
-                renderVisualizerPage();
-            }
         });
         selectPriority.addEventListener('click', (e) => e.stopPropagation());
         tdPriority.appendChild(selectPriority);
@@ -4602,7 +4628,7 @@ function renderReportTable() {
         // Common Name
         const tdName = document.createElement('td');
         tdName.style.fontWeight = '500';
-        tdName.textContent = plant.name;
+        tdName.innerHTML = `${plant.name}${isConceptPlant ? ' <span class="badge badge-emerald" style="font-size: 10px; margin-left: 6px; padding: 2px 6px;">★ In Visualizer Concept</span>' : ''}`;
         tr.appendChild(tdName);
 
         // Family
@@ -4821,15 +4847,16 @@ function exportReportToCSV() {
 // -------------------------------------------------------------
 
 function getPlacementModel() {
-    const soil = soilSelect.value;
-    const acidity = aciditySelect.value;
-    const sun = sunSelect.value;
-    const water = waterSelect.value;
+    const soil = soilSelect ? soilSelect.value : 'loam';
+    const acidity = aciditySelect ? aciditySelect.value : 'neutral';
+    const sun = sunSelect ? sunSelect.value : 'sun_full';
+    const water = waterSelect ? waterSelect.value : 'water_moist';
     const zoneVal = state.currentZone || '7';
     const parsedZone = parseInt(zoneVal) || 7;
-    const theme = state.activeTheme;
+    const theme = state.activeTheme || 'cottage';
     const conceptIndex = state.activeConcept || 'concept-1';
     
+    // Filter candidates based on exact environment settings from the Garden Visualizer
     let candidates = PLANTS_DATA.filter(p => {
         if (p.zone) {
             const parts = p.zone.split('-');
@@ -4865,23 +4892,56 @@ function getPlacementModel() {
     });
     
     if (candidates.length < 3) {
-        candidates = PLANTS_DATA.slice(0, 8);
+        candidates = PLANTS_DATA.slice(0, 12);
     }
+
+    // Theme keywords scoring to rank best matching specimens for the active visualizer theme
+    const themeKeywords = {
+        'cottage': ['lavender', 'delphinium', 'rose', 'hydrangea', 'foxglove', 'clematis', 'salvia', 'iris', 'peony', 'catmint', 'phlox'],
+        'xeriscape': ['agave', 'yucca', 'salvia', 'sedum', 'succulent', 'cactus', 'lavender', 'grass', 'sage', 'aloe', 'senecio'],
+        'zen': ['maple', 'bamboo', 'boxwood', 'azalea', 'fern', 'juniper', 'moss', 'iris', 'cherry', 'hosta', 'conifer'],
+        'meadow': ['coneflower', 'aster', 'susan', 'poppy', 'milkweed', 'grass', 'coreopsis', 'yarrow', 'blazing', 'lupine']
+    };
+
+    const targetKw = themeKeywords[theme] || themeKeywords['cottage'];
+
+    candidates.sort((a, b) => {
+        const nameA = (a.name + ' ' + a.genus).toLowerCase();
+        const nameB = (b.name + ' ' + b.genus).toLowerCase();
+        const scoreA = targetKw.reduce((acc, kw) => acc + (nameA.includes(kw) ? 5 : 0), 0);
+        const scoreB = targetKw.reduce((acc, kw) => acc + (nameB.includes(kw) ? 5 : 0), 0);
+        return scoreB - scoreA;
+    });
     
-    let seed = theme.charCodeAt(0) + theme.charCodeAt(theme.length - 1);
+    // Categorize into background, midground, border layers
+    const bgPlants = [];
+    const midPlants = [];
+    const borderPlants = [];
+
+    candidates.forEach(p => {
+        const hStr = p.height || "3 ft";
+        const hMax = parseInt(hStr.split('-')[1] || hStr) || 3;
+        if (hMax >= 8) bgPlants.push(p);
+        else if (hMax >= 3) midPlants.push(p);
+        else borderPlants.push(p);
+    });
+
     let selectedPlants = [];
-    for (let i = 0; i < 5; i++) {
-        const idx = (seed + i * 7) % candidates.length;
-        const p = candidates[idx];
-        if (p && !selectedPlants.includes(p)) {
-            selectedPlants.push(p);
-        }
+    if (bgPlants.length > 0) selectedPlants.push(bgPlants[0]);
+    if (midPlants.length > 0) selectedPlants.push(midPlants[0]);
+    if (midPlants.length > 1) selectedPlants.push(midPlants[1]);
+    if (borderPlants.length > 0) selectedPlants.push(borderPlants[0]);
+    if (borderPlants.length > 1) selectedPlants.push(borderPlants[1]);
+
+    for (let p of candidates) {
+        if (selectedPlants.length >= 6) break;
+        if (!selectedPlants.includes(p)) selectedPlants.push(p);
     }
+
     if (selectedPlants.length < 3) {
         selectedPlants = candidates.slice(0, 3);
     }
-    
-    // Add user-added placement plants if not already in the list
+
     if (state.addedPlacementPlants) {
         state.addedPlacementPlants.forEach(p => {
             if (!selectedPlants.some(x => x.name === p.name && x.genus === p.genus)) {
@@ -4889,10 +4949,10 @@ function getPlacementModel() {
             }
         });
     }
-    
-    const colors = ["#ef4444", "#3b82f6", "#10b981", "#eab308", "#ec4899", "#8b5cf6", "#f97316"];
+
+    const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ec4899", "#ef4444", "#06b6d4"];
     const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    
+
     let totalQty = 0;
     const schedule = selectedPlants.map((plant, index) => {
         const symbol = letters[index % letters.length];
@@ -4902,8 +4962,8 @@ function getPlacementModel() {
         const hMax = parseInt(heightStr.split('-')[1] || heightStr) || 3;
         
         let type = 'perennial';
-        if (hMax > 15) type = 'tree';
-        else if (hMax > 5) type = 'shrub';
+        if (hMax >= 8) type = 'tree';
+        else if (hMax >= 3) type = 'shrub';
         
         let baseQty = 4;
         if (type === 'tree') baseQty = 1;
@@ -4911,17 +4971,17 @@ function getPlacementModel() {
         else baseQty = 8;
         
         if (conceptIndex === 'concept-2') {
-            baseQty = Math.ceil(baseQty * 1.6);
+            baseQty = Math.ceil(baseQty * 1.5);
         } else if (conceptIndex === 'concept-3') {
             baseQty = Math.max(1, Math.ceil(baseQty * 0.5));
         }
-        
+
         let spacing = "1.5 ft";
-        if (type === 'tree') spacing = "15 ft";
-        else if (type === 'shrub') spacing = "5 ft";
+        if (type === 'tree') spacing = "12 ft";
+        else if (type === 'shrub') spacing = "4 ft";
         
         totalQty += baseQty;
-        
+
         const positions = [];
         for (let q = 0; q < baseQty; q++) {
             let yMin = 0.6, yMax = 0.85;
@@ -4931,11 +4991,11 @@ function getPlacementModel() {
                 yMin = 0.35; yMax = 0.6;
             }
             
-            const x = 0.15 + (0.7 / Math.max(1, baseQty - 1)) * q + (Math.random() * 0.05 - 0.025);
+            const x = 0.12 + (0.76 / Math.max(1, baseQty - 1)) * q + (Math.random() * 0.04 - 0.02);
             const y = yMin + Math.random() * (yMax - yMin);
             positions.push({ x: Math.min(0.9, Math.max(0.1, x)), y: Math.min(0.9, Math.max(0.1, y)) });
         }
-        
+
         return {
             symbol,
             color,
@@ -4949,7 +5009,7 @@ function getPlacementModel() {
             type
         };
     });
-    
+
     return {
         schedule,
         totalQty
