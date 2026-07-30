@@ -4292,11 +4292,7 @@ function initReportLocationControls() {
 
     if (!addressInput || !btnGps || !filterZone) return;
 
-    function updateLocationFromText(text) {
-        const cleaned = text.trim();
-        if (!cleaned) return;
-        state.currentAddress = cleaned;
-
+    function detectZoneFromLocation(cleaned, lat, lon) {
         const zipMatch = cleaned.match(/\b\d{5}\b/);
         let foundZone = null;
         let detectedInfo = '';
@@ -4307,13 +4303,24 @@ function initReportLocationControls() {
             detectedInfo = `${zipInfo.climate} (${zipInfo.zone})`;
         } else {
             const lower = cleaned.toLowerCase();
-            if (lower.includes('miami') || lower.includes('honolulu') || lower.includes('key west')) foundZone = '11a';
-            else if (lower.includes('los angeles') || lower.includes('san diego') || lower.includes('phoenix') || lower.includes('orlando')) foundZone = '10a';
-            else if (lower.includes('sacramento') || lower.includes('austin') || lower.includes('dallas') || lower.includes('houston')) foundZone = '9b';
-            else if (lower.includes('portland') || lower.includes('seattle') || lower.includes('atlanta')) foundZone = '8b';
-            else if (lower.includes('new york') || lower.includes('washington') || lower.includes('charlotte')) foundZone = '7b';
-            else if (lower.includes('chicago') || lower.includes('boston') || lower.includes('st. louis')) foundZone = '6a';
-            else if (lower.includes('denver') || lower.includes('minneapolis')) foundZone = '5b';
+            if (lower.includes('miami') || lower.includes('honolulu') || lower.includes('key west') || lower.includes('hawaii')) foundZone = '11a';
+            else if (lower.includes('los angeles') || lower.includes('san diego') || lower.includes('phoenix') || lower.includes('orlando') || lower.includes('tampa') || lower.includes('fl') || lower.includes('florida')) foundZone = '10a';
+            else if (lower.includes('sacramento') || lower.includes('austin') || lower.includes('dallas') || lower.includes('houston') || lower.includes('tx') || lower.includes('texas') || lower.includes('la') || lower.includes('louisiana')) foundZone = '9b';
+            else if (lower.includes('portland') || lower.includes('seattle') || lower.includes('atlanta') || lower.includes('ga') || lower.includes('georgia') || lower.includes('nc') || lower.includes('wa') || lower.includes('or')) foundZone = '8b';
+            else if (lower.includes('new york') || lower.includes('washington') || lower.includes('charlotte') || lower.includes('ny') || lower.includes('va') || lower.includes('tn')) foundZone = '7b';
+            else if (lower.includes('chicago') || lower.includes('boston') || lower.includes('st. louis') || lower.includes('il') || lower.includes('ma') || lower.includes('oh') || lower.includes('pa')) foundZone = '6a';
+            else if (lower.includes('denver') || lower.includes('minneapolis') || lower.includes('co') || lower.includes('mn') || lower.includes('wi')) foundZone = '5b';
+            else if (lower.includes('billings') || lower.includes('mt') || lower.includes('montana') || lower.includes('nd')) foundZone = '4b';
+
+            if (!foundZone && lat !== undefined && lat !== null) {
+                if (lat > 45) foundZone = '4b';
+                else if (lat > 41) foundZone = '5b';
+                else if (lat > 37) foundZone = '6b';
+                else if (lat > 33) foundZone = '7b';
+                else if (lat > 29) foundZone = '8b';
+                else if (lat > 26) foundZone = '9b';
+                else foundZone = '10a';
+            }
         }
 
         if (foundZone) {
@@ -4321,6 +4328,7 @@ function initReportLocationControls() {
             filterZone.value = String(numericZone);
             if (badge) {
                 badge.textContent = `Zone Detected: Zone ${foundZone} ${detectedInfo ? '• ' + detectedInfo : ''}`;
+                badge.style.background = 'rgba(16, 185, 129, 0.2)';
             }
             renderReportTable();
         } else {
@@ -4329,6 +4337,32 @@ function initReportLocationControls() {
             }
         }
     }
+
+    function updateLocationFromText(text, lat, lon) {
+        const cleaned = text.trim();
+        if (!cleaned) return;
+        state.currentAddress = cleaned;
+
+        detectZoneFromLocation(cleaned, lat, lon);
+
+        const zipMatch = cleaned.match(/\b\d{5}\b/);
+        if (zipMatch && !state.zipCodes[zipMatch[0]]) {
+            fetch(`https://api.zippopotam.us/us/${zipMatch[0]}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.places && data.places[0]) {
+                        const place = data.places[0];
+                        const plat = parseFloat(place.latitude);
+                        detectZoneFromLocation(cleaned, plat, parseFloat(place.longitude));
+                    }
+                })
+                .catch(() => {});
+        }
+    }
+
+    addressInput.addEventListener('input', (e) => {
+        updateLocationFromText(e.target.value);
+    });
 
     addressInput.addEventListener('change', (e) => {
         updateLocationFromText(e.target.value);
@@ -4352,33 +4386,46 @@ function initReportLocationControls() {
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                btnGps.disabled = false;
-                btnGps.innerHTML = originalBtnHTML;
-
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
 
-                let estZoneNum = 7;
-                let zoneStr = '7b';
-                if (lat > 45) { estZoneNum = 4; zoneStr = '4b'; }
-                else if (lat > 41) { estZoneNum = 5; zoneStr = '5b'; }
-                else if (lat > 37) { estZoneNum = 6; zoneStr = '6b'; }
-                else if (lat > 33) { estZoneNum = 7; zoneStr = '7b'; }
-                else if (lat > 29) { estZoneNum = 8; zoneStr = '8b'; }
-                else if (lat > 26) { estZoneNum = 9; zoneStr = '9b'; }
-                else { estZoneNum = 10; zoneStr = '10a'; }
+                // Perform Reverse Geocoding to get actual street address
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        btnGps.disabled = false;
+                        btnGps.innerHTML = originalBtnHTML;
 
-                const gpsAddrStr = `GPS Site: ${lat.toFixed(4)}° N, ${Math.abs(lon).toFixed(4)}° W`;
-                addressInput.value = gpsAddrStr;
-                state.currentAddress = gpsAddrStr;
+                        let formattedAddr = "";
+                        if (data && data.address) {
+                            const a = data.address;
+                            const houseNum = a.house_number || "";
+                            const road = a.road || a.pedestrian || a.suburb || a.neighbourhood || "";
+                            const city = a.city || a.town || a.village || a.county || "";
+                            const stateStr = a.state || "";
+                            const postcode = a.postcode || "";
+                            const street = houseNum ? `${houseNum} ${road}` : road;
+                            const parts = [street, city, stateStr, postcode].filter(Boolean);
+                            formattedAddr = parts.join(", ");
+                        }
+                        if (!formattedAddr && data && data.display_name) {
+                            formattedAddr = data.display_name.split(',').slice(0, 4).join(',');
+                        }
+                        if (!formattedAddr) {
+                            formattedAddr = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                        }
 
-                filterZone.value = String(estZoneNum);
-                if (badge) {
-                    badge.textContent = `📍 GPS Active: Zone ${zoneStr} (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`;
-                    badge.style.background = 'rgba(16, 185, 129, 0.2)';
-                }
-
-                renderReportTable();
+                        addressInput.value = formattedAddr;
+                        updateLocationFromText(formattedAddr, lat, lon);
+                    })
+                    .catch(err => {
+                        btnGps.disabled = false;
+                        btnGps.innerHTML = originalBtnHTML;
+                        console.warn('Reverse geocode error, using coordinate fallback:', err);
+                        const fallbackAddr = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                        addressInput.value = fallbackAddr;
+                        updateLocationFromText(fallbackAddr, lat, lon);
+                    });
             },
             (err) => {
                 btnGps.disabled = false;
