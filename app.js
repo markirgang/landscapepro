@@ -440,6 +440,12 @@ function updateClimateInfo(zip, addressText) {
         climateCard.classList.add('hidden');
     }
 
+    const filterZone = document.getElementById('filter-zone');
+    if (filterZone && info && info.zone) {
+        const numZ = parseInt(info.zone) || 7;
+        filterZone.value = String(numZ);
+    }
+
     updateConceptLabels();
     markSettingsDirty();
 }
@@ -4313,11 +4319,16 @@ function initReportLocationControls() {
         let foundZone = null;
         let detectedInfo = '';
 
-        if (zipMatch && state.zipCodes[zipMatch[0]]) {
-            const zipInfo = state.zipCodes[zipMatch[0]];
-            foundZone = zipInfo.zone;
-            detectedInfo = `${zipInfo.climate} (${zipInfo.zone})`;
-        } else {
+        if (zipMatch) {
+            const zipCode = zipMatch[0];
+            const zipInfo = getZoneForZipCode(zipCode);
+            if (zipInfo) {
+                foundZone = zipInfo.zone;
+                detectedInfo = `ZIP ${zipCode} (${zipInfo.climate || 'USDA Zone'})`;
+            }
+        }
+
+        if (!foundZone) {
             const lower = cleaned.toLowerCase();
             if (lower.includes('miami') || lower.includes('honolulu') || lower.includes('key west') || lower.includes('hawaii')) foundZone = '11a';
             else if (lower.includes('los angeles') || lower.includes('san diego') || lower.includes('phoenix') || lower.includes('orlando') || lower.includes('tampa') || lower.includes('fl') || lower.includes('florida')) foundZone = '10a';
@@ -4342,6 +4353,7 @@ function initReportLocationControls() {
         if (foundZone) {
             const numericZone = parseInt(foundZone) || 7;
             filterZone.value = String(numericZone);
+            state.currentZone = String(numericZone);
             if (badge) {
                 badge.textContent = `Zone Detected: Zone ${foundZone} ${detectedInfo ? '• ' + detectedInfo : ''}`;
                 badge.style.background = 'rgba(16, 185, 129, 0.2)';
@@ -4362,14 +4374,22 @@ function initReportLocationControls() {
         detectZoneFromLocation(cleaned, lat, lon);
 
         const zipMatch = cleaned.match(/\b\d{5}\b/);
-        if (zipMatch && !state.zipCodes[zipMatch[0]]) {
-            fetch(`https://api.zippopotam.us/us/${zipMatch[0]}`)
+        if (!zipMatch) {
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(cleaned)}`)
                 .then(res => res.json())
                 .then(data => {
-                    if (data && data.places && data.places[0]) {
-                        const place = data.places[0];
-                        const plat = parseFloat(place.latitude);
-                        detectZoneFromLocation(cleaned, plat, parseFloat(place.longitude));
+                    if (data && data.length > 0) {
+                        const geo = data[0];
+                        let resolvedZip = (geo.address && geo.address.postcode) ? geo.address.postcode : null;
+                        if (!resolvedZip) {
+                            const m = geo.display_name.match(/\b\d{5}\b/);
+                            if (m) resolvedZip = m[0];
+                        }
+                        if (resolvedZip) {
+                            detectZoneFromLocation(resolvedZip, parseFloat(geo.lat), parseFloat(geo.lon));
+                        } else if (geo.lat) {
+                            detectZoneFromLocation(cleaned, parseFloat(geo.lat), parseFloat(geo.lon));
+                        }
                     }
                 })
                 .catch(() => {});
