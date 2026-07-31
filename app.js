@@ -4944,9 +4944,9 @@ function getPlacementModel() {
 
     // Theme keywords scoring to rank best matching specimens for the active visualizer theme
     const themeKeywords = {
-        'cottage': ['lavender', 'delphinium', 'rose', 'hydrangea', 'foxglove', 'clematis', 'salvia', 'iris', 'peony', 'catmint', 'phlox'],
-        'xeriscape': ['agave', 'yucca', 'salvia', 'sedum', 'succulent', 'cactus', 'lavender', 'grass', 'sage', 'aloe', 'senecio'],
-        'zen': ['maple', 'bamboo', 'boxwood', 'azalea', 'fern', 'juniper', 'moss', 'iris', 'cherry', 'hosta', 'conifer'],
+        'cottage': ['hosta', 'dipladenia', 'mandevilla', 'lavender', 'delphinium', 'rose', 'hydrangea', 'foxglove', 'clematis', 'salvia', 'iris', 'peony', 'catmint', 'phlox'],
+        'xeriscape': ['dipladenia', 'mandevilla', 'agave', 'yucca', 'salvia', 'sedum', 'succulent', 'cactus', 'lavender', 'grass', 'sage', 'aloe', 'senecio'],
+        'zen': ['hosta', 'maple', 'bamboo', 'boxwood', 'azalea', 'fern', 'juniper', 'moss', 'iris', 'cherry', 'conifer'],
         'meadow': ['coneflower', 'aster', 'susan', 'poppy', 'milkweed', 'grass', 'coreopsis', 'yarrow', 'blazing', 'lupine']
     };
 
