@@ -4254,7 +4254,10 @@ function initReportPage() {
         filterZipCode.addEventListener('change', handleZipInput);
     }
 
-    const reportFilters = [reportSearch, filterCommonName, headerFilterCommonName, filterZipCode, filterPriority, filterPh, filterZone, filterLight, filterMoisture, filterEdibility];
+    populateGenusFilterDropdown();
+
+    const filterGenus = document.getElementById('filter-genus');
+    const reportFilters = [reportSearch, filterCommonName, headerFilterCommonName, filterGenus, filterZipCode, filterPriority, filterPh, filterZone, filterLight, filterMoisture, filterEdibility];
     reportFilters.forEach(f => {
         if (f) {
             f.addEventListener('input', renderReportTable);
@@ -4539,11 +4542,29 @@ function initReportLocationControls() {
     });
 }
 
+// Populate Genus filter dropdown with all unique, sorted genera
+function populateGenusFilterDropdown() {
+    const filterGenus = document.getElementById('filter-genus');
+    if (!filterGenus) return;
+
+    const currentVal = filterGenus.value || 'any';
+    const genera = Array.from(new Set(PLANTS_DATA.map(p => p.genus).filter(Boolean))).sort();
+    
+    let html = '<option value="any">Any Genus</option>';
+    genera.forEach(g => {
+        const isSelected = g === currentVal ? 'selected' : '';
+        html += `<option value="${g}" ${isSelected}>${g}</option>`;
+    });
+
+    filterGenus.innerHTML = html;
+}
+
 // Render filtered plants into table
 function renderReportTable() {
     const reportSearch = document.getElementById('report-search');
     const filterCommonName = document.getElementById('filter-common-name');
     const headerFilterCommonName = document.getElementById('header-filter-common-name');
+    const filterGenus = document.getElementById('filter-genus');
     const filterPriority = document.getElementById('filter-priority');
     const filterPh = document.getElementById('filter-ph');
     const filterZone = document.getElementById('filter-zone');
@@ -4569,6 +4590,7 @@ function renderReportTable() {
     const ignoreValues = ['', 'any', 'all', 'any common name...', 'filter common name...'];
     const isCommonNameFiltering = commonNameVal && !ignoreValues.includes(commonNameVal);
 
+    const genusVal = filterGenus ? filterGenus.value : 'any';
     const priorityVal = filterPriority ? filterPriority.value : 'any';
     const phVal = filterPh ? filterPh.value : 'any';
     const zoneVal = filterZone ? filterZone.value : 'any';
@@ -4580,6 +4602,9 @@ function renderReportTable() {
     let filtered = PLANTS_DATA.filter(plant => {
         const plantKey = plant.genus + '_' + plant.species;
         const prio = state.plantPriorities ? (state.plantPriorities[plantKey] || 'none') : 'none';
+
+        // Genus filter
+        if (genusVal !== 'any' && plant.genus !== genusVal) return false;
 
         // Common Name filter
         if (isCommonNameFiltering) {
