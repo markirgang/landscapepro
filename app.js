@@ -4497,7 +4497,8 @@ function initReportLocationControls() {
 // Render filtered plants into table
 function renderReportTable() {
     const reportSearch = document.getElementById('report-search');
-    const filterCommonName = document.getElementById('filter-common-name') || document.getElementById('header-filter-common-name');
+    const filterCommonName = document.getElementById('filter-common-name');
+    const headerFilterCommonName = document.getElementById('header-filter-common-name');
     const filterPriority = document.getElementById('filter-priority');
     const filterPh = document.getElementById('filter-ph');
     const filterZone = document.getElementById('filter-zone');
@@ -4516,7 +4517,13 @@ function renderReportTable() {
 
     // Get filter states
     const query = reportSearch ? reportSearch.value.trim().toLowerCase() : '';
-    const commonNameVal = filterCommonName ? filterCommonName.value.trim().toLowerCase() : 'any';
+    let commonNameVal = (filterCommonName && filterCommonName.value.trim()) ? filterCommonName.value.trim().toLowerCase() : '';
+    if (!commonNameVal && headerFilterCommonName && headerFilterCommonName.value.trim()) {
+        commonNameVal = headerFilterCommonName.value.trim().toLowerCase();
+    }
+    const ignoreValues = ['', 'any', 'all', 'any common name...', 'filter common name...'];
+    const isCommonNameFiltering = commonNameVal && !ignoreValues.includes(commonNameVal);
+
     const priorityVal = filterPriority ? filterPriority.value : 'any';
     const phVal = filterPh ? filterPh.value : 'any';
     const zoneVal = filterZone ? filterZone.value : 'any';
@@ -4530,7 +4537,7 @@ function renderReportTable() {
         const prio = state.plantPriorities ? (state.plantPriorities[plantKey] || 'none') : 'none';
 
         // Common Name filter
-        if (commonNameVal !== 'any' && commonNameVal !== '') {
+        if (isCommonNameFiltering) {
             if (!plant.name.toLowerCase().includes(commonNameVal)) return false;
         }
 
