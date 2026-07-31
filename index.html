@@ -306,6 +306,21 @@
                                 <div class="handle-line"></div>
                             </div>
 
+                            <!-- Floating Plant Hover Info Window -->
+                            <div class="plant-hover-window hidden" id="plant-hover-window">
+                                <div class="hover-window-header">
+                                    <span class="hover-plant-badge" id="hover-plant-badge">A</span>
+                                    <div class="hover-title-group">
+                                        <h5 class="hover-plant-name" id="hover-plant-name">English Lavender</h5>
+                                        <p class="hover-botanical-name" id="hover-botanical-name">Lavandula angustifolia</p>
+                                    </div>
+                                </div>
+                                <div class="hover-window-tags">
+                                    <span class="hover-tag hover-tag-layer" id="hover-tag-layer">Midground</span>
+                                    <span class="hover-tag hover-tag-height" id="hover-tag-height">2-3 ft</span>
+                                </div>
+                            </div>
+
                             <!-- Beautiful Glassmorphic Overlay to Launch/Regenerate Visualizations -->
                             <div class="canvas-overlay hidden" id="canvas-overlay">
                                 <div class="overlay-content">
@@ -730,8 +745,21 @@
                         </h4>
                         <span id="modal-grid-badge" class="badge">20' x 15' Grid</span>
                     </div>
-                    <div class="modal-canvas-wrapper">
+                    <div class="modal-canvas-wrapper" style="position: relative;">
                         <canvas id="modal-placement-canvas"></canvas>
+                        <div class="plant-hover-window hidden" id="modal-plant-hover-window">
+                            <div class="hover-window-header">
+                                <span class="hover-plant-badge" id="modal-hover-plant-badge">A</span>
+                                <div class="hover-title-group">
+                                    <h5 class="hover-plant-name" id="modal-hover-plant-name">English Lavender</h5>
+                                    <p class="hover-botanical-name" id="modal-hover-botanical-name">Lavandula angustifolia</p>
+                                </div>
+                            </div>
+                            <div class="hover-window-tags">
+                                <span class="hover-tag hover-tag-layer" id="modal-hover-tag-layer">Midground</span>
+                                <span class="hover-tag hover-tag-height" id="modal-hover-tag-height">2-3 ft</span>
+                            </div>
+                        </div>
                     </div>
                     <div class="modal-legend-bar">
                         <span class="legend-item"><span class="legend-dot bg-layer"></span> Background (Tall)</span>

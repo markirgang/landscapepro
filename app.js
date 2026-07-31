@@ -249,6 +249,8 @@ window.addEventListener('DOMContentLoaded', () => {
     initVisualizerInteraction();
     initVisualizerExport();
     initVisualizerPlacementExport();
+    initDesignerPlantHover();
+    initModalPlantHover();
     
     // Load default demo space
     loadDemoSpace();
@@ -4598,6 +4600,64 @@ function renderReportTable() {
     const moistureVal = filterMoisture ? filterMoisture.value : 'any';
     const edibilityVal = filterEdibility ? filterEdibility.value : 'any';
 
+function matchPlantQuery(plant, query) {
+    if (!query) return true;
+    let q = query.toLowerCase().trim();
+    if (!q) return true;
+    
+    // Plural / synonym / spelling normalization
+    if (q === 'cactuses' || q === 'cacti') q = 'cactus';
+    if (q === 'periwinkles') q = 'periwinkle';
+    if (q === 'succulents') q = 'succulent';
+    if (q === 'agaves') q = 'agave';
+    if (q === 'vincas') q = 'vinca';
+    if (q === 'roses') q = 'rose';
+    if (q.includes('beaugain') || q.includes('bogain') || q.includes('bougan') || q.includes('bougain') || q.includes('bugan')) q = 'bougainvillea';
+    
+    const genus = (plant.genus || '').toLowerCase();
+    const species = (plant.species || '').toLowerCase();
+    const name = (plant.name || '').toLowerCase();
+    const family = (plant.family || '').toLowerCase();
+
+    if (q === 'florida' || q === 'tropical' || q === 'subtropical' || q === 'miami' || q === 'orlando' || q === 'tampa' || q === 'keys' || q === 'palms') {
+        const zMax = parseInt((plant.zone || '7').split('-')[1]) || 7;
+        return zMax >= 10 || family.includes('florida') || family.includes('tropical') || name.includes('tropical') || name.includes('palm') || name.includes('hibiscus');
+    }
+
+    if (q === 'cold' || q === 'cold hardy' || q === 'cold weather' || q === 'winter' || q === 'winter hardy' || q === 'subzero' || q === 'zone 1' || q === 'zone 2' || q === 'zone 3' || q === 'zone 4') {
+        const zMin = parseInt((plant.zone || '7').split('-')[0]) || 7;
+        return zMin <= 4 || family.includes('cold') || family.includes('nordic') || family.includes('alpine') || name.includes('cold');
+    }
+
+    if (q === 'home depot' || q === 'homedepot' || q === 'lowes' || q === "lowe's" || q === 'nursery' || q === 'retail' || q === 'store') {
+        return family.includes('home depot') || family.includes('garden center') || family.includes('top 100') || family.includes('nursery');
+    }
+
+    if (q === 'rio' || q === 'dipladenia' || q === 'rock trumpet' || q === 'rocktrumpet' || q === 'mandevilla') {
+        return (
+            name.includes('dipladenia') ||
+            name.includes('mandevilla') ||
+            name.includes('rio') ||
+            name.includes('rock trumpet') ||
+            genus.includes('mandevilla') ||
+            species.includes('sanderi') ||
+            species.includes('splendens') ||
+            species.includes('boliviensis')
+        );
+    }
+
+    if (q === 'cactus') {
+        return name.includes('cactus') || family.includes('cactus') || genus.includes('carnegiea') || genus.includes('opuntia') || genus.includes('echinocactus') || genus.includes('echinopsis') || genus.includes('ferocactus') || genus.includes('stenocereus') || genus.includes('cylindropuntia') || genus.includes('pachycereus') || genus.includes('mammillaria') || genus.includes('astrophytum');
+    }
+
+    return (
+        genus.includes(q) ||
+        species.includes(q) ||
+        name.includes(q) ||
+        family.includes(q)
+    );
+}
+
     // Filter plants
     let filtered = PLANTS_DATA.filter(plant => {
         const plantKey = plant.genus + '_' + plant.species;
@@ -4617,14 +4677,9 @@ function renderReportTable() {
         if (priorityVal === 'medium' && prio !== 'medium') return false;
         if (priorityVal === 'low' && prio !== 'low') return false;
 
-        // Text search (genus, species, name, family)
+        // Text search (genus, species, name, family with plural normalization)
         if (query) {
-            const matchesQuery = 
-                plant.genus.toLowerCase().includes(query) ||
-                plant.species.toLowerCase().includes(query) ||
-                plant.name.toLowerCase().includes(query) ||
-                plant.family.toLowerCase().includes(query);
-            if (!matchesQuery) return false;
+            if (!matchPlantQuery(plant, query)) return false;
         }
 
         // Soil pH filter
@@ -4874,12 +4929,7 @@ function exportReportToCSV() {
 
     const filtered = PLANTS_DATA.filter(plant => {
         if (query) {
-            const matchesQuery = 
-                plant.genus.toLowerCase().includes(query) ||
-                plant.species.toLowerCase().includes(query) ||
-                plant.name.toLowerCase().includes(query) ||
-                plant.family.toLowerCase().includes(query);
-            if (!matchesQuery) return false;
+            if (!matchPlantQuery(plant, query)) return false;
         }
 
         if (phVal !== 'any') {
@@ -5032,8 +5082,10 @@ function getPlacementModel() {
 
     // Theme keywords scoring to rank best matching specimens for the active visualizer theme
     const themeKeywords = {
-        'cottage': ['hosta', 'dipladenia', 'mandevilla', 'lavender', 'delphinium', 'rose', 'hydrangea', 'foxglove', 'clematis', 'salvia', 'iris', 'peony', 'catmint', 'phlox'],
-        'xeriscape': ['dipladenia', 'mandevilla', 'agave', 'yucca', 'salvia', 'sedum', 'succulent', 'cactus', 'lavender', 'grass', 'sage', 'aloe', 'senecio'],
+        'cottage': ['hosta', 'vinca', 'dipladenia', 'mandevilla', 'lavender', 'delphinium', 'rose', 'hydrangea', 'foxglove', 'clematis', 'salvia', 'iris', 'peony', 'catmint', 'phlox'],
+        'xeriscape': ['vinca', 'periwinkle', 'catharanthus', 'agave', 'yucca', 'salvia', 'sedum', 'succulent', 'cactus', 'lavender', 'grass', 'sage', 'aloe', 'senecio', 'desert', 'bougainvillea', 'lantana', 'opuntia'],
+        'desert-oasis': ['vinca', 'periwinkle', 'catharanthus', 'agave', 'yucca', 'cactus', 'desert', 'bougainvillea', 'lantana', 'aloe', 'succulent', 'adenium', 'opuntia'],
+        'rock-alpine': ['vinca', 'periwinkle', 'sedum', 'succulent', 'rock', 'alpine', 'thyme', 'sempervivum', 'armeria', 'saxifraga'],
         'zen': ['hosta', 'maple', 'bamboo', 'boxwood', 'azalea', 'fern', 'juniper', 'moss', 'iris', 'cherry', 'conifer'],
         'meadow': ['coneflower', 'aster', 'susan', 'poppy', 'milkweed', 'grass', 'coreopsis', 'yarrow', 'blazing', 'lupine']
     };
@@ -5495,8 +5547,259 @@ function initPlantDiagramModal() {
             document.body.removeChild(a);
         });
     }
+}
 
+// -------------------------------------------------------------
+// PLANT HOVER INTERACTION FOR GARDEN DESIGNER TAB
+// -------------------------------------------------------------
 
+function getDesignerPlantHotspots(w, h) {
+    const conceptMap = { 'concept-1': 1, 'concept-2': 2, 'concept-3': 3, 'concept-custom': 4 };
+    const conceptIndex = conceptMap[state.activeConcept] || 1;
+    
+    const groundLevel = h * 0.65;
+    const canvasHeight = h;
+    
+    let seed = conceptIndex * 15;
+    function random() {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    }
+    
+    const aLen = parseFloat(areaLengthInput ? areaLengthInput.value : 20) || 20;
+    const aWid = parseFloat(areaWidthInput ? areaWidthInput.value : 15) || 15;
+    const sqft = aLen * aWid;
+    
+    let baseDensity = Math.round(sqft / 18);
+    let plantCount = Math.max(6, Math.min(48, baseDensity));
+    
+    if (conceptIndex === 2) plantCount = Math.round(plantCount * 1.5);
+    if (conceptIndex === 3) plantCount = Math.round(plantCount * 0.5);
+    plantCount = Math.max(3, plantCount);
+    
+    let plants = [];
+    for (let i = 0; i < plantCount; i++) {
+        const px = w * 0.05 + random() * (w * 0.9);
+        const py = groundLevel + (canvasHeight - groundLevel) * (0.05 + 0.9 * random());
+        
+        let plantType = 'midground';
+        if (py < groundLevel + (canvasHeight - groundLevel) * 0.3) {
+            plantType = 'background';
+        } else if (py > groundLevel + (canvasHeight - groundLevel) * 0.7) {
+            plantType = 'foreground';
+        }
+        
+        plants.push({ x: px, y: py, type: plantType, rVal: random() });
+    }
+    
+    plants.sort((a, b) => a.y - b.y);
+    
+    const placementModel = typeof getPlacementModel === 'function' ? getPlacementModel() : { schedule: [] };
+    const schedule = placementModel.schedule || [];
+    const hotspots = [];
+    
+    plants.forEach((plant, idx) => {
+        let matchGroup = schedule.find(g => {
+            if (plant.type === 'background') return g.type === 'tree';
+            if (plant.type === 'midground') return g.type === 'shrub';
+            return g.type === 'perennial';
+        }) || schedule[idx % Math.max(1, schedule.length)] || {
+            symbol: String.fromCharCode(65 + (idx % 26)),
+            color: '#10b981',
+            name: 'Garden Specimen',
+            genus: 'Flora',
+            species: 'decorativa',
+            height: '3-4 ft',
+            type: 'perennial'
+        };
+        
+        const layerLabel = plant.type === 'background' ? 'Background (Tall)' :
+                          (plant.type === 'midground' ? 'Midground (Clump)' : 'Foreground / Border');
+        
+        hotspots.push({
+            x: plant.x,
+            y: plant.y,
+            radius: Math.max(30, (0.7 + plant.rVal * 0.6) * 35),
+            name: matchGroup.name,
+            genus: matchGroup.genus,
+            species: matchGroup.species,
+            symbol: matchGroup.symbol,
+            color: matchGroup.color || '#10b981',
+            height: matchGroup.height || '2-4 ft',
+            type: matchGroup.type || plant.type,
+            layerLabel: layerLabel
+        });
+    });
+    
+    return hotspots;
+}
+
+function drawPlantHighlightRing(spot) {
+    const afterCanvas = document.getElementById('after-canvas');
+    if (!afterCanvas || !spot) return;
+    const ctx = afterCanvas.getContext('2d');
+    
+    ctx.save();
+    ctx.shadowColor = spot.color || '#10b981';
+    ctx.shadowBlur = 18;
+    ctx.strokeStyle = spot.color || '#10b981';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.arc(spot.x, spot.y - 25, spot.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.fillStyle = spot.color || '#10b981';
+    ctx.beginPath();
+    ctx.arc(spot.x, spot.y - 25, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function initDesignerPlantHover() {
+    const sliderContainer = document.getElementById('slider-container');
+    const afterCanvas = document.getElementById('after-canvas');
+    const hoverWindow = document.getElementById('plant-hover-window');
+    
+    if (!sliderContainer || !hoverWindow || !afterCanvas) return;
+
+    const hoverBadge = document.getElementById('hover-plant-badge');
+    const hoverName = document.getElementById('hover-plant-name');
+    const hoverBotanical = document.getElementById('hover-botanical-name');
+    const hoverTagLayer = document.getElementById('hover-tag-layer');
+    const hoverTagHeight = document.getElementById('hover-tag-height');
+
+    sliderContainer.addEventListener('mousemove', (e) => {
+        const canvasW = afterCanvas.width || 800;
+        const canvasH = afterCanvas.height || 600;
+        
+        const hotspots = getDesignerPlantHotspots(canvasW, canvasH);
+        state.designerPlantHotspots = hotspots;
+
+        const rect = sliderContainer.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) * (canvasW / rect.width);
+        const mouseY = (e.clientY - rect.top) * (canvasH / rect.height);
+
+        let found = null;
+        let minDist = Infinity;
+
+        hotspots.forEach(spot => {
+            const spotY = spot.y - 25;
+            const dist = Math.hypot(mouseX - spot.x, mouseY - spotY);
+            if (dist <= spot.radius && dist < minDist) {
+                minDist = dist;
+                found = spot;
+            }
+        });
+
+        if (found) {
+            const pctX = (found.x / canvasW) * 100;
+            const pctY = ((found.y - 35) / canvasH) * 100;
+
+            hoverWindow.style.left = `${pctX}%`;
+            hoverWindow.style.top = `${pctY}%`;
+
+            if (hoverBadge) {
+                hoverBadge.textContent = found.symbol;
+                hoverBadge.style.backgroundColor = found.color;
+            }
+            if (hoverName) hoverName.textContent = found.name;
+            if (hoverBotanical) hoverBotanical.textContent = `${found.genus} ${found.species}`;
+            if (hoverTagLayer) hoverTagLayer.textContent = found.layerLabel;
+            if (hoverTagHeight) hoverTagHeight.textContent = found.height;
+
+            hoverWindow.classList.remove('hidden');
+
+            if (state.activeHoverPlant !== found) {
+                state.activeHoverPlant = found;
+                drawPlantHighlightRing(found);
+            }
+        } else {
+            hoverWindow.classList.add('hidden');
+            if (state.activeHoverPlant !== null) {
+                state.activeHoverPlant = null;
+                updateActiveVisualization();
+            }
+        }
+    });
+
+    sliderContainer.addEventListener('mouseleave', () => {
+        hoverWindow.classList.add('hidden');
+        if (state.activeHoverPlant !== null) {
+            state.activeHoverPlant = null;
+            updateActiveVisualization();
+        }
+    });
+}
+
+function initModalPlantHover() {
+    const canvas = document.getElementById('modal-placement-canvas');
+    const hoverWindow = document.getElementById('modal-plant-hover-window');
+    if (!canvas || !hoverWindow) return;
+
+    const hoverBadge = document.getElementById('modal-hover-plant-badge');
+    const hoverName = document.getElementById('modal-hover-plant-name');
+    const hoverBotanical = document.getElementById('modal-hover-botanical-name');
+    const hoverTagLayer = document.getElementById('modal-hover-tag-layer');
+    const hoverTagHeight = document.getElementById('modal-hover-tag-height');
+
+    canvas.addEventListener('mousemove', (e) => {
+        const model = getPlacementModel();
+        if (!model || !model.schedule) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const canvasW = canvas.width || 800;
+        const canvasH = canvas.height || 600;
+
+        const mouseX = (e.clientX - rect.left) * (canvasW / rect.width);
+        const mouseY = (e.clientY - rect.top) * (canvasH / rect.height);
+
+        let foundGroup = null;
+        let foundPos = null;
+        let minDist = Infinity;
+
+        model.schedule.forEach(group => {
+            group.positions.forEach(pos => {
+                const px = pos.x * canvasW;
+                const py = pos.y * canvasH;
+                const dist = Math.hypot(mouseX - px, mouseY - py);
+                if (dist <= 25 && dist < minDist) {
+                    minDist = dist;
+                    foundGroup = group;
+                    foundPos = { x: px, y: py, normX: pos.x, normY: pos.y };
+                }
+            });
+        });
+
+        if (foundGroup && foundPos) {
+            const pctX = foundPos.normX * 100;
+            const pctY = foundPos.normY * 100;
+
+            hoverWindow.style.left = `${pctX}%`;
+            hoverWindow.style.top = `${pctY}%`;
+
+            if (hoverBadge) {
+                hoverBadge.textContent = foundGroup.symbol;
+                hoverBadge.style.backgroundColor = foundGroup.color;
+            }
+            if (hoverName) hoverName.textContent = foundGroup.name;
+            if (hoverBotanical) hoverBotanical.textContent = `${foundGroup.genus} ${foundGroup.species}`;
+            if (hoverTagLayer) {
+                const layerName = foundGroup.type === 'tree' ? 'Background (Tall)' :
+                                 (foundGroup.type === 'shrub' ? 'Midground (Clump)' : 'Foreground / Border');
+                hoverTagLayer.textContent = layerName;
+            }
+            if (hoverTagHeight) hoverTagHeight.textContent = foundGroup.height;
+
+            hoverWindow.classList.remove('hidden');
+        } else {
+            hoverWindow.classList.add('hidden');
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        hoverWindow.classList.add('hidden');
+    });
 }
 
 // -------------------------------------------------------------
@@ -6439,15 +6742,6 @@ function getFilteredPlants() {
         }
 
         return true;
-    });
-
-    const prioWeight = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
-    filtered.sort((a, b) => {
-        const keyA = a.genus + '_' + a.species;
-        const keyB = b.genus + '_' + b.species;
-        const weightA = prioWeight[state.plantPriorities ? (state.plantPriorities[keyA] || 'none') : 'none'] || 0;
-        const weightB = prioWeight[state.plantPriorities ? (state.plantPriorities[keyB] || 'none') : 'none'] || 0;
-        return weightB - weightA;
     });
 
     return filtered;

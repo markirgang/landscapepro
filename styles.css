@@ -2631,4 +2631,114 @@ input[type="text"].input-select {
     background: rgba(30, 41, 59, 0.3);
 }
 
+/* -------------------------------------------------------------
+ * PLANT HOVER INFO WINDOW (GARDEN DESIGNER TAB)
+ * ------------------------------------------------------------- */
+.plant-hover-window {
+    position: absolute;
+    z-index: 100;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    padding: 10px 14px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(16, 185, 129, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+    max-width: 260px;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    transform: translate(-50%, -110%);
+    color: #f8fafc;
+}
+
+.plant-hover-window.hidden {
+    display: none !important;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.hover-window-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hover-plant-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-weight: 800;
+    font-size: 12px;
+    color: #0f172a;
+    background-color: #10b981;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.hover-title-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.hover-plant-name {
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hover-botanical-name {
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-style: italic;
+    color: #94a3b8;
+    margin: 2px 0 0 0;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hover-window-tags {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+
+.hover-tag {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+}
+
+.hover-tag-layer {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.hover-tag-height {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
 
