@@ -4228,7 +4228,33 @@ function initReportPage() {
         });
     }
 
-    const reportFilters = [reportSearch, filterCommonName, headerFilterCommonName, filterPriority, filterPh, filterZone, filterLight, filterMoisture, filterEdibility];
+    const filterZipCode = document.getElementById('filter-zip-code');
+    if (filterZipCode) {
+        const handleZipInput = () => {
+            const val = filterZipCode.value.trim();
+            const match = val.match(/\b\d{5}\b/);
+            if (match) {
+                const zipCode = match[0];
+                const zipInfo = getZoneForZipCode(zipCode);
+                if (zipInfo && zipInfo.zone) {
+                    const numericZone = parseInt(zipInfo.zone) || 7;
+                    if (filterZone) filterZone.value = String(numericZone);
+                    state.currentZone = String(numericZone);
+                    state.currentZip = zipCode;
+                    const badge = document.getElementById('report-location-badge');
+                    if (badge) {
+                        badge.textContent = `Zone Detected: Zone ${zipInfo.zone} • ZIP ${zipCode} (${zipInfo.climate || 'USDA Zone'})`;
+                        badge.style.background = 'rgba(16, 185, 129, 0.2)';
+                    }
+                }
+            }
+            renderReportTable();
+        };
+        filterZipCode.addEventListener('input', handleZipInput);
+        filterZipCode.addEventListener('change', handleZipInput);
+    }
+
+    const reportFilters = [reportSearch, filterCommonName, headerFilterCommonName, filterZipCode, filterPriority, filterPh, filterZone, filterLight, filterMoisture, filterEdibility];
     reportFilters.forEach(f => {
         if (f) {
             f.addEventListener('input', renderReportTable);
@@ -4360,6 +4386,10 @@ function initReportLocationControls() {
             if (zipInfo) {
                 foundZone = zipInfo.zone;
                 detectedInfo = `ZIP ${zipCode} (${zipInfo.climate || 'USDA Zone'})`;
+                const filterZipInput = document.getElementById('filter-zip-code');
+                if (filterZipInput && filterZipInput.value !== zipCode) {
+                    filterZipInput.value = zipCode;
+                }
             }
         }
 
