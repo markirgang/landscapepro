@@ -4213,6 +4213,21 @@ function initReportPage() {
         });
     }
 
+    const btnTop100Zone = document.getElementById('btn-top-100-zone');
+    if (btnTop100Zone) {
+        btnTop100Zone.addEventListener('click', () => {
+            state.showTop100ZoneOnly = !state.showTop100ZoneOnly;
+            if (state.showTop100ZoneOnly) {
+                btnTop100Zone.style.background = 'var(--color-primary)';
+                btnTop100Zone.style.color = '#ffffff';
+            } else {
+                btnTop100Zone.style.background = 'transparent';
+                btnTop100Zone.style.color = 'var(--color-primary)';
+            }
+            renderReportTable();
+        });
+    }
+
     const reportFilters = [reportSearch, filterCommonName, headerFilterCommonName, filterPriority, filterPh, filterZone, filterLight, filterMoisture, filterEdibility];
     reportFilters.forEach(f => {
         if (f) {
@@ -4620,6 +4635,10 @@ function renderReportTable() {
         return (inConceptB + weightB) - (inConceptA + weightA);
     });
 
+    if (state.showTop100ZoneOnly) {
+        filtered = filtered.slice(0, 100);
+    }
+
     // Clear and build tbody
     tbody.innerHTML = '';
     
@@ -4627,6 +4646,13 @@ function renderReportTable() {
         tbody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: var(--text-muted); padding: 30px;">No matching plants found in the database.</td></tr>`;
         countLabel.textContent = `Showing 0 of ${PLANTS_DATA.length} plants`;
         return;
+    }
+
+    const activeZoneName = zoneVal !== 'any' ? `Zone ${zoneVal}` : (state.currentZone ? `Zone ${state.currentZone}` : 'Selected Climate');
+    if (state.showTop100ZoneOnly) {
+        countLabel.textContent = `Showing Top ${filtered.length} Most Common Landscape Plants for ${activeZoneName}`;
+    } else {
+        countLabel.textContent = `Showing ${filtered.length} of ${PLANTS_DATA.length} plants (${activeZoneName})`;
     }
 
     filtered.forEach(plant => {

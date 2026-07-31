@@ -468,7 +468,12 @@
                             </select>
                         </div>
                         <div class="filter-field">
-                            <label for="filter-zone">Hardiness Zone</label>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <label for="filter-zone" style="margin-bottom: 0;">Hardiness Zone</label>
+                                <button id="btn-top-100-zone" type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; line-height: 1; border-color: var(--color-primary); color: var(--color-primary); display: inline-flex; align-items: center; gap: 3px;" title="Filter to the 100 most common landscape plants for the selected zone">
+                                    ★ Top 100 Zone Plants
+                                </button>
+                            </div>
                             <select id="filter-zone" class="input-select">
                                 <option value="any" selected>Any Zone</option>
                                 <option value="2">Zone 2</option>
