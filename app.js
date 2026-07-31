@@ -6240,9 +6240,11 @@ function clearPlantDetailCard() {
 
 // Helper to resolve high quality plant image URL matching the plant
 function getPlantImageUrl(plant) {
-    const name = plant.name.toLowerCase();
-    const genus = plant.genus.toLowerCase();
-    const family = plant.family.toLowerCase();
+    if (plant && plant.photo) return plant.photo;
+
+    const name = plant.name ? plant.name.toLowerCase() : '';
+    const genus = plant.genus ? plant.genus.toLowerCase() : '';
+    const family = plant.family ? plant.family.toLowerCase() : '';
     
     // Curated local mappings first
     if (name.includes('rose') || genus.includes('rosa')) return 'assets/plants/rose_bush.png';
